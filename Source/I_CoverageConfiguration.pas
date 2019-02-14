@@ -67,6 +67,7 @@ const
   cPARAMETER_XML_LINES = '-xmllines';
   cPARAMETER_HTML_OUTPUT = '-html';
   cPARAMETER_DPROJ = '-dproj';
+  cPARAMETER_GROUPPROJ = '-groupproj';
   cPARAMETER_EXCLUDE_SOURCE_MASK = '-esm';
   cPARAMETER_MODULE_NAMESPACE = '-mns';
   cPARAMETER_UNIT_NAMESPACE = '-uns';

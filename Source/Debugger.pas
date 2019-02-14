@@ -203,6 +203,9 @@ begin
   ConsoleOutput(I_CoverageConfiguration.cPARAMETER_UNIT_FILE +
       ' filename        -- a file containing a list of units to create');
   ConsoleOutput('                       reports for - one unit per line');
+  ConsoleOutput(I_CoverageConfiguration.cPARAMETER_GROUPPROJ +
+      ' MyProjects.group -- Delphi projects group file. The units of the projects');
+  ConsoleOutput('                       contained in the groups will be added to the covered units list');
   ConsoleOutput(I_CoverageConfiguration.cPARAMETER_SOURCE_DIRECTORY +
       ' directory       -- the directory where the project file is located.');
   ConsoleOutput(

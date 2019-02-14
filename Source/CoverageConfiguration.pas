@@ -3,7 +3,8 @@
 (*                                                                     *)
 (* A quick hack of a Code Coverage Tool for Delphi                     *)
 (* by Christer Fahlgren and Nick Ring                                  *)
-(*                                                                     *) 
+(* - groupproject support by Tobias Rörig                              *)
+(*                                                                     *)
 (* This Source Code Form is subject to the terms of the Mozilla Public *)
 (* License, v. 2.0. If a copy of the MPL was not distributed with this *)
 (* file, You can obtain one at http://mozilla.org/MPL/2.0/.            *)
@@ -58,7 +59,10 @@ type
     procedure ParseBooleanSwitches;
     function GetCurrentConfig(const Project: IXMLNode): string;
     function GetExeOutputFromDProj(const Project: IXMLNode; const ProjectName: TFileName): string;
+    function GetDCCReferencesFromDProj(const ItemGroup: IXMLNode; const Rootpath: TFileName): string;
     procedure ParseDProj(const DProjFilename: TFileName);
+    procedure ParseDProjForDccReferencesOnly(const DProjFilename: TFileName);
+    procedure ParseProjGroup(const ProjGroupFilename: TFileName);
     function IsPathInExclusionList(const APath: TFileName): Boolean;
     procedure ExcludeSourcePaths;
     procedure RemovePathsFromUnits;
@@ -82,6 +86,7 @@ type
     procedure ParseLoggingTextSwitch(var AParameter: Integer);
     procedure ParseWinApiLoggingSwitch(var AParameter: Integer);
     procedure ParseDprojSwitch(var AParameter: Integer);
+    procedure ParseProjGroupSwitch(var AParameter: Integer);
     procedure ParseExcludeSourceMaskSwitch(var AParameter: Integer);
     procedure ParseModuleNameSpaceSwitch(var AParameter: Integer);
     procedure ParseUnitNameSpaceSwitch(var AParameter: Integer);
@@ -513,6 +518,53 @@ begin
   end;
 end;
 
+procedure TCoverageConfiguration.ParseProjGroup(const ProjGroupFilename: TFileName);
+var
+  Document: IXMLDocument;
+  Node: IXMLNode;
+  Project: IXMLNode;
+  ProjectsItemGroup: IXMLNode;
+  Projectname: string;
+  I: Integer;
+  RootPath: TFileName;
+begin
+  RootPath := ExtractFilePath(TPath.GetFullPath(ProjGroupFilename));
+  Document := TXMLDocument.Create(nil);
+  Document.LoadFromFile(ProjGroupFilename);
+
+  Project := Document.ChildNodes.FindNode('Project');
+  if Project <> nil then
+  begin
+    ProjectsItemGroup := Project.ChildNodes.FindNode('ItemGroup');
+    if Assigned(ProjectsItemGroup) then
+    begin
+      for I := 0 to ProjectsItemGroup.ChildNodes.Count - 1 do
+      begin
+        Node := ProjectsItemGroup.ChildNodes.Get(I);
+        if Node.LocalName = 'Projects' then
+        begin
+          Projectname := TPath.GetFullPath(TPath.Combine(RootPath, Node.Attributes['Include']));
+          ParseDProjForDccReferencesOnly(Projectname);
+        end;
+      end;
+    end;
+  end;
+end;
+
+procedure TCoverageConfiguration.ParseProjGroupSwitch(var AParameter: Integer);
+var
+  vGroupProjPath: TFileName;
+begin
+  Inc(AParameter);
+  try
+    vGroupProjPath := ParseParameter(AParameter);
+    ParseProjGroup(vGroupProjPath);
+  except
+    on EParameterIndexException do
+      raise EConfigurationException.Create('Expected parameter for project file');
+  end;
+end;
+
 function TCoverageConfiguration.ExpandEnvString(const APath: string): string;
 var
   Size: Cardinal;
@@ -573,6 +625,8 @@ begin
   end
   else if SwitchItem = I_CoverageConfiguration.cPARAMETER_DPROJ then
     ParseDprojSwitch(AParameter)
+  else if SwitchItem = I_CoverageConfiguration.cPARAMETER_GROUPPROJ then
+    ParseProjGroupSwitch(AParameter)
   else if SwitchItem = I_CoverageConfiguration.cPARAMETER_EXCLUDE_SOURCE_MASK then
     ParseExcludeSourceMaskSwitch(AParameter)
   else if SwitchItem = I_CoverageConfiguration.cPARAMETER_MODULE_NAMESPACE then
@@ -882,6 +936,33 @@ begin
   end;
 end;
 
+function TCoverageConfiguration.GetDCCReferencesFromDProj(const ItemGroup: IXMLNode; const Rootpath: TFileName): string;
+var
+  I : Integer;
+  Node: IXMLNode;
+  Unitname: string;
+  SourcePath: TFileName;
+begin
+  if ItemGroup <> nil then
+    begin
+      FLoadingFromDProj := True;
+      for I := 0 to ItemGroup.ChildNodes.Count - 1 do
+      begin
+        Node := ItemGroup.ChildNodes.Get(I);
+        if Node.LocalName = 'DCCReference' then
+        begin
+          Unitname := TPath.GetFullPath(TPath.Combine(RootPath, Node.Attributes['Include']));
+          SourcePath := TPath.GetDirectoryName(Unitname);
+          if FSourcePathLst.IndexOf(SourcePath) = -1 then
+            FSourcePathLst.Add(SourcePath);
+
+          if FDProjUnitsLst.IndexOf(UnitName) = -1 then
+            FDProjUnitsLst.Add(UnitName);
+        end;
+      end;
+    end;
+end;
+
 function TCoverageConfiguration.GetExeOutputFromDProj(const Project: IXMLNode; const ProjectName: TFileName): string;
 var
   CurrentConfig: string;
@@ -932,12 +1013,8 @@ procedure TCoverageConfiguration.ParseDProj(const DProjFilename: TFileName);
 var
   Document: IXMLDocument;
   ItemGroup: IXMLNode;
-  Node: IXMLNode;
   Project: IXMLNode;
-  Unitname: string;
-  I: Integer;
   RootPath: TFileName;
-  SourcePath: TFileName;
   ExeFileName: TFileName;
 begin
   RootPath := ExtractFilePath(TPath.GetFullPath(DProjFilename));
@@ -956,24 +1033,25 @@ begin
     end;
 
     ItemGroup := Project.ChildNodes.FindNode('ItemGroup');
-    if ItemGroup <> nil then
-    begin
-      FLoadingFromDProj := True;
-      for I := 0 to ItemGroup.ChildNodes.Count - 1 do
-      begin
-        Node := ItemGroup.ChildNodes.Get(I);
-        if Node.LocalName = 'DCCReference' then
-        begin
-          Unitname := TPath.GetFullPath(TPath.Combine(RootPath, Node.Attributes['Include']));
-          SourcePath := TPath.GetDirectoryName(Unitname);
-          if FSourcePathLst.IndexOf(SourcePath) = -1 then
-            FSourcePathLst.Add(SourcePath);
+    GetDCCReferencesFromDProj(ItemGroup, RootPath);
+  end;
+end;
 
-          if FDProjUnitsLst.IndexOf(UnitName) = -1 then
-            FDProjUnitsLst.Add(UnitName);
-        end;
-      end;
-    end;
+procedure TCoverageConfiguration.ParseDProjForDccReferencesOnly(const DProjFilename: TFileName);
+var
+  Document: IXMLDocument;
+  ItemGroup: IXMLNode;
+  Project: IXMLNode;
+  RootPath: TFileName;
+begin
+  RootPath := ExtractFilePath(TPath.GetFullPath(DProjFilename));
+  Document := TXMLDocument.Create(nil);
+  Document.LoadFromFile(DProjFilename);
+  Project := Document.ChildNodes.FindNode('Project');
+  if Project <> nil then
+  begin
+    ItemGroup := Project.ChildNodes.FindNode('ItemGroup');
+    GetDCCReferencesFromDProj(ItemGroup, RootPath);
   end;
 end;
 
