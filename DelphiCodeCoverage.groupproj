@@ -9,6 +9,12 @@
         <Projects Include="Test\CodeCoverageTests.dproj">
             <Dependencies/>
         </Projects>
+        <Projects Include="Source\Sample\SimpleSample.dproj">
+            <Dependencies>Source\Sample\SimplePackage.dproj</Dependencies>
+        </Projects>
+        <Projects Include="Source\Sample\SimplePackage.dproj">
+            <Dependencies/>
+        </Projects>
     </ItemGroup>
     <ProjectExtensions>
         <Borland.Personality>Default.Personality.12</Borland.Personality>
@@ -35,14 +41,32 @@
     <Target Name="CodeCoverageTests:Make">
         <MSBuild Projects="Test\CodeCoverageTests.dproj" Targets="Make"/>
     </Target>
+    <Target Name="SimpleSample" DependsOnTargets="SimplePackage">
+        <MSBuild Projects="Source\Sample\SimpleSample.dproj"/>
+    </Target>
+    <Target Name="SimpleSample:Clean" DependsOnTargets="SimplePackage:Clean">
+        <MSBuild Projects="Source\Sample\SimpleSample.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="SimpleSample:Make" DependsOnTargets="SimplePackage:Make">
+        <MSBuild Projects="Source\Sample\SimpleSample.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="SimplePackage">
+        <MSBuild Projects="Source\Sample\SimplePackage.dproj"/>
+    </Target>
+    <Target Name="SimplePackage:Clean">
+        <MSBuild Projects="Source\Sample\SimplePackage.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="SimplePackage:Make">
+        <MSBuild Projects="Source\Sample\SimplePackage.dproj" Targets="Make"/>
+    </Target>
     <Target Name="Build">
-        <CallTarget Targets="CodeCoverage;CodeCoverageTests"/>
+        <CallTarget Targets="CodeCoverage;CodeCoverageTests;SimpleSample;SimplePackage"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="CodeCoverage:Clean;CodeCoverageTests:Clean"/>
+        <CallTarget Targets="CodeCoverage:Clean;CodeCoverageTests:Clean;SimpleSample:Clean;SimplePackage:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="CodeCoverage:Make;CodeCoverageTests:Make"/>
+        <CallTarget Targets="CodeCoverage:Make;CodeCoverageTests:Make;SimpleSample:Make;SimplePackage:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>

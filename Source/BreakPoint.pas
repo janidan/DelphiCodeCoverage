@@ -3,6 +3,7 @@
 (*                                                                     *)
 (* A quick hack of a Code Coverage Tool for Delphi                     *)
 (* by Christer Fahlgren and Nick Ring                                  *)
+(* Portions by Tobias Rörig                                            *)
 (*                                                                     *) 
 (* This Source Code Form is subject to the terms of the Mozilla Public *)
 (* License, v. 2.0. If a copy of the MPL was not distributed with this *)
@@ -67,7 +68,8 @@ implementation
 
 uses
   SysUtils,
-  Windows;
+  Windows,
+  DebuggerUtils;
 
 constructor TBreakPoint.Create(const ADebugProcess: IDebugProcess;
                                const AAddress: Pointer;
@@ -106,7 +108,7 @@ begin
     begin
       OpCode := $CC;
       BytesWritten := FProcess.WriteProcessMemory(FAddress, @OpCode, 1, true);
-      FlushInstructionCache(FProcess.Handle, nil, 0);
+      FlushInstructionCache(FProcess.Handle, FAddress, 1);
       if BytesWritten = 1 then
       begin
         for DetailIndex := 0 to Pred(FDetailsCount) do
@@ -114,7 +116,7 @@ begin
           FLogManager.Log(
             'Activate ' + FDetails[DetailIndex].UnitName +
             ' line ' + IntToStr(FDetails[DetailIndex].Line) +
-            ' BreakPoint at:' + IntToHex(Integer(FAddress), 8)
+            ' BreakPoint at:' + AddressToString(FAddress)
           );
         end;
 
@@ -135,14 +137,14 @@ begin
   if not Result then
   begin
     BytesWritten := FProcess.writeProcessMemory(FAddress, @FOld_Opcode, 1,true);
-    FlushInstructionCache(FProcess.Handle,nil,0);
+    FlushInstructionCache(FProcess.Handle,FAddress,1);
 
     for DetailIndex := 0 to Pred(FDetailsCount) do
     begin
       FLogManager.Log(
         'De-Activate ' + FDetails[DetailIndex].UnitName +
         ' line ' + IntToStr(FDetails[DetailIndex].Line) +
-        ' BreakPoint at:' + IntToHex(Integer(FAddress), 8)
+        ' BreakPoint at:' + AddressToString(FAddress)
       );
     end;
 
@@ -182,7 +184,7 @@ var
   ContextRecord: CONTEXT;
   Result: BOOL;
 begin
-  FLogManager.Log('Clearing BreakPoint at ' + IntToHex(Integer(FAddress), 8));
+  FLogManager.Log('Clearing BreakPoint at ' + AddressToString(FAddress));
 
   ContextRecord.ContextFlags := CONTEXT_CONTROL;
 

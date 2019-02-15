@@ -3,6 +3,7 @@
 (*                                                                     *)
 (* A quick hack of a Code Coverage Tool for Delphi                     *)
 (* by Christer Fahlgren and Nick Ring                                  *)
+(* Portions by Tobias Rörig                                            *)
 (*                                                                     *) 
 (* This Source Code Form is subject to the terms of the Mozilla Public *)
 (* License, v. 2.0. If a copy of the MPL was not distributed with this *)
@@ -45,12 +46,6 @@ type
     FTestExeExitCode: Integer;
     FLastBreakPoint: IBreakPoint;
 
-    function AddressFromVA(
-      const AVA: DWORD;
-      const AModule: HMODULE): Pointer; inline;
-    function VAFromAddress(
-      const AAddr: Pointer;
-      const AModule: HMODULE): DWORD; inline;
     function GetImageName(const APtr: Pointer; const AUnicode: Word;
       const AlpBaseOfDll: Pointer; const AHandle: THANDLE): string;
     procedure AddBreakPoints(
@@ -128,7 +123,8 @@ uses
   EmmaCoverageFileUnit,
   DebugModule,
   JclPEImage,
-  JclFileUtils;
+  JclFileUtils,
+  DebuggerUtils;
 
 function RealReadFromProcessMemory(
   const AhProcess: THANDLE;
@@ -262,20 +258,6 @@ begin
 
 end;
 
-function TDebugger.VAFromAddress(
-  const AAddr: Pointer;
-  const AModule: HMODULE): DWORD;
-begin
-  Result := DWORD_PTR(AAddr) - AModule - $1000;
-end;
-
-function TDebugger.AddressFromVA(
-  const AVA: DWORD;
-  const AModule: HMODULE): Pointer;
-begin
-  Result := Pointer(DWORD_PTR(AVA + AModule + $1000));
-end;
-
 procedure TDebugger.Start;
 var
   Reason: String;
@@ -316,7 +298,7 @@ procedure TDebugger.GenerateReport;
 var
   ModuleStats: ICoverageStats;
   UnitStats: ICoverageStats;
-  BreakPointIndex: Integer;
+//  BreakPointIndex: Integer;
   BreakPointDetailIndex: Integer;
   BreakPoint: IBreakPoint;
   BreakPointDetail: TBreakPointDetail;
@@ -326,9 +308,10 @@ begin
   ModuleStats := nil;
   UnitStats := nil;
 
-  for BreakPointIndex := 0 to Pred(FBreakPointList.Count) do
+  //for BreakPointIndex := 0 to Pred(FBreakPointList.Count) do
+  for BreakPoint in FBreakPointList.GetBreakPoints do
   begin
-    BreakPoint := FBreakPointList[BreakPointIndex];
+    //BreakPoint := FBreakPointList[BreakPointIndex];
 
     for BreakPointDetailIndex := 0 to Pred(BreakPoint.DetailCount) do
     begin
@@ -603,9 +586,6 @@ begin
 
       FLogManager.Log('Adding breakpoints for module:' + AModule.Name);
 
-      if FBreakPointList.Count = 0 then
-        FBreakPointList.SetCapacity(AMapScanner.LineNumbersCnt); // over kill!
-
       for LineIndex := 0 to AMapScanner.LineNumbersCnt - 1 do
       begin
         MapLineNumber := AMapScanner.LineNumberByIndex[LineIndex];
@@ -643,12 +623,12 @@ begin
                 ' unit ' + UnitName +
                 ' addr:' + IntToStr(LineIndex));
 
-              BreakPoint := FBreakPointList.BreakPointByAddress[(AddressFromVA(MapLineNumber.VA, AModule.Base))];
+              BreakPoint := FBreakPointList.BreakPointByAddress[(AddressFromVA(MapLineNumber.VA, AModule.CodeBegin))];
               if not Assigned(BreakPoint) then
               begin
                 BreakPoint := TBreakPoint.Create(
                   FDebugProcess,
-                  AddressFromVA(MapLineNumber.VA, AModule.Base),
+                  AddressFromVA(MapLineNumber.VA, AModule.CodeBegin),
                   AModule,
                   FLogManager
                 );
@@ -678,7 +658,7 @@ begin
           else
             FLogManager.Log(
               'Module name "' + ModuleName + '" did not match module from address name "' +
-              ModuleNameFromAddr + '" at address:' + IntToHex(MapLineNumber.VA, 8));
+              ModuleNameFromAddr + '" at address:' + AddressToString(MapLineNumber.VA));
         end;
       end;
 
@@ -752,6 +732,7 @@ begin
     ADebugEvent.CreateProcessInfo.hProcess,
     DWORD(ADebugEvent.CreateProcessInfo.lpBaseOfImage),
     ProcessName,
+    ADebugEvent.CreateProcessInfo.hFile,
     Size,
     FMapScanner,
     FLogManager);
@@ -819,8 +800,8 @@ begin
     Cardinal(EXCEPTION_ACCESS_VIOLATION):
       begin
         FLogManager.Log(
-          'ACCESS VIOLATION at Address:' + IntToHex(Integer(ExceptionRecord.ExceptionAddress), 8));
-        FLogManager.Log(IntToHex(ExceptionRecord.ExceptionCode, 8) + ' not a debug BreakPoint');
+          'ACCESS VIOLATION at Address:' + AddressToString(ExceptionRecord.ExceptionAddress));
+        FLogManager.Log(AddressToString(ExceptionRecord.ExceptionCode) + ' not a debug BreakPoint');
 
         if ExceptionRecord.NumberParameters > 1 then
         begin
@@ -832,14 +813,14 @@ begin
             FLogManager.Log('DEP exception');
 
           FLogManager.Log(
-            'Trying to access Address:' + IntToHex(Integer(ExceptionRecord.ExceptionInformation[1]), 8));
+            'Trying to access Address:' + AddressToString(ExceptionRecord.ExceptionInformation[1]));
 
           if Assigned(MapScanner) then
           begin
             for BreakPointDetailIndex := 0 to MapScanner.LineNumbersCnt - 1 do
             begin
               if MapScanner.LineNumberByIndex[BreakPointDetailIndex].VA = VAFromAddress(
-                ExceptionRecord.ExceptionAddress, Module.Base) then
+                ExceptionRecord.ExceptionAddress, Module.CodeBegin) then
               begin
                 FLogManager.Log(
                   MapScanner.ModuleNameFromAddr(MapScanner.LineNumberByIndex[BreakPointDetailIndex].VA) +
@@ -853,12 +834,12 @@ begin
             if not Assigned(Module) then
               FLogManager.Log(
                 'No map information available Address:' +
-                IntToHex(Integer(ExceptionRecord.ExceptionInformation[1]), 8) +
+                AddressToString(ExceptionRecord.ExceptionInformation[1]) +
                 ' in unknown module')
             else
               FLogManager.Log(
                 'No map information available Address:' +
-                IntToHex(Integer(ExceptionRecord.ExceptionInformation[1]), 8) +
+                AddressToString(ExceptionRecord.ExceptionInformation[1]) +
                 ' module ' + Module.Name);
           end;
 
@@ -919,7 +900,7 @@ begin
           // A good contender for this is ntdll.DbgBreakPoint {$7C90120E}
           FLogManager.Log(
             'Couldn''t find BreakPoint for exception address:' +
-            IntToHex(Integer(ExceptionRecord.ExceptionAddress), 8));
+            AddressToString(ExceptionRecord.ExceptionAddress));
         end;
         ADebugEventHandlingResult := Cardinal(DBG_CONTINUE);
       end;
@@ -939,9 +920,9 @@ begin
       begin
         FLogManager.Log(
           'EXCEPTION_DATATYPE_MISALIGNMENT Address:' +
-          IntToHex(Integer(ExceptionRecord.ExceptionAddress), 8));
+          AddressToString(ExceptionRecord.ExceptionAddress));
         FLogManager.Log(
-          IntToHex(ExceptionRecord.ExceptionCode, 8) + ' not a debug BreakPoint');
+          AddressToString(ExceptionRecord.ExceptionCode) + ' not a debug BreakPoint');
         AContProcessEvents := False;
       end;
 
@@ -963,9 +944,9 @@ begin
     // Cardinal(EXCEPTION_STACK_OVERFLOW)
   else
     begin
-      FLogManager.Log('EXCEPTION CODE:' + IntToHex(ExceptionRecord.ExceptionCode, 8));
-      FLogManager.Log('Address:' + IntToHex(Integer(ExceptionRecord.ExceptionAddress), 8));
-      FLogManager.Log('EXCEPTION flags:' + IntToHex(ExceptionRecord.ExceptionFlags, 8));
+      FLogManager.Log('EXCEPTION CODE:' + AddressToString(ExceptionRecord.ExceptionCode));
+      FLogManager.Log('Address:' + AddressToString(ExceptionRecord.ExceptionAddress));
+      FLogManager.Log('EXCEPTION flags:' + AddressToString(ExceptionRecord.ExceptionFlags));
       LogStackFrame(ADebugEvent);
     end;
   end
@@ -1026,14 +1007,14 @@ begin
 
             FLogManager.Log(
               'Module : ' + Module.Name +
-              ' Stack frame:' + IntToHex(Cardinal(Pointer(StackFrame.AddrPC.Offset)), 8));
+              ' Stack frame:' + AddressToString(Pointer(StackFrame.AddrPC.Offset)));
             if Assigned(MapScanner) then
             begin
               for LineIndex := 0 to MapScanner.LineNumbersCnt - 1 do
               begin
                 MapLineNumber := MapScanner.LineNumberByIndex[LineIndex];
                 if MapLineNumber.VA =
-                  VAFromAddress(Pointer(StackFrame.AddrPC.Offset), Module.Base) then
+                  VAFromAddress(Pointer(StackFrame.AddrPC.Offset), Module.CodeBegin) then
                 begin
                   FLogManager.Log(
                     'Exact line:' + MapScanner.ModuleNameFromAddr(MapLineNumber.VA) +
@@ -1041,9 +1022,9 @@ begin
                   break;
                 end
                 else if (MapLineNumber.VA > VAFromAddress
-                    (Pointer(StackFrame.AddrPC.Offset), Module.Base)) and
+                    (Pointer(StackFrame.AddrPC.Offset), Module.CodeBegin)) and
                   (VAFromAddress(Pointer(StackFrame.AddrPC.Offset),
-                    Module.Base) < MapScanner.LineNumberByIndex[LineIndex + 1]
+                    Module.CodeBegin) < MapScanner.LineNumberByIndex[LineIndex + 1]
                     .VA) then
                 begin
                   FLogManager.Log(
@@ -1060,7 +1041,7 @@ begin
           begin
             FLogManager.Log(
               'No module found for exception address:' +
-              IntToHex(StackFrame.AddrPC.Offset, 8));
+              AddressToString(StackFrame.AddrPC.Offset));
           end;
         end;
       end;
@@ -1138,6 +1119,7 @@ begin
 
       Module := TDebugModule.Create(
         DllName,
+        ADebugEvent.LoadDll.hFile,
         HMODULE(ADebugEvent.LoadDll.lpBaseOfDll),
         Size,
         MapScanner);
@@ -1145,7 +1127,7 @@ begin
       ExtraMsg := ' (' + DllName + ') size :' + IntToStr(Size);
 
       FLogManager.Log(
-        'Loading DLL at addr:' + IntToHex(DWORD(ADebugEvent.LoadDll.lpBaseOfDll), 8) +
+        'Loading DLL at addr:' + AddressToString(ADebugEvent.LoadDll.lpBaseOfDll) +
         ExtraMsg);
 
       ModuleNameSpace := FCoverageConfiguration.ModuleNameSpace(ExtractFileName(DllName));
@@ -1175,9 +1157,18 @@ begin
 end;
 
 procedure TDebugger.HandleUnLoadDLL(const ADebugEvent: DEBUG_EVENT);
+var
+  DbgModule: IDebugModule;
 begin
-  FLogManager.Log(
-    'UnLoading DLL:' + IntToHex(DWORD(ADebugEvent.LoadDll.lpBaseOfDll), 8));
+  DbgModule := FDebugProcess.GetModuleByBase(NativeUInt(ADebugEvent.UnloadDll.lpBaseOfDll));
+  if not Assigned(DbgModule) then
+  begin
+    FLogManager.Log('UnLoading DLL:' + AddressToString(ADebugEvent.UnloadDll.lpBaseOfDll));
+    Exit;
+  end;
+
+  FBreakPointList.RemoveModuleBreakpoints(DbgModule);
+  FDebugProcess.RemoveModule(DbgModule);
 end;
 
 procedure TDebugger.HandleOutputDebugString(const ADebugEvent: DEBUG_EVENT);

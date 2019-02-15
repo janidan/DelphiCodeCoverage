@@ -3,6 +3,7 @@
 (*                                                                     *)
 (* A quick hack of a Code Coverage Tool for Delphi                     *)
 (* by Christer Fahlgren and Nick Ring                                  *)
+(* Portions by Tobias Rörig                                            *)
 (*                                                                     *) 
 (* This Source Code Form is subject to the terms of the Mozilla Public *)
 (* License, v. 2.0. If a copy of the MPL was not distributed with this *)
@@ -22,7 +23,7 @@ uses
   DebugProcess in 'DebugProcess.pas',
   DebugThread in 'DebugThread.pas',
   I_BreakPoint in 'I_BreakPoint.pas',
-  I_BreakPointList in 'I_BreakpointList.pas',
+  I_BreakpointList in 'I_BreakpointList.pas',
   I_CoverageConfiguration in 'I_CoverageConfiguration.pas',
   I_CoverageStats in 'I_CoverageStats.pas',
   I_Debugger in 'I_Debugger.pas',
@@ -47,7 +48,9 @@ uses
   I_DebugModule in 'I_DebugModule.pas',
   ModuleNameSpaceUnit in 'ModuleNameSpaceUnit.pas',
   uConsoleOutput in 'uConsoleOutput.pas',
-  HtmlHelper in 'HtmlHelper.pas';
+  HtmlHelper in 'HtmlHelper.pas',
+  DebuggerUtils in 'DebuggerUtils.pas',
+  LoggerConsole in 'LoggerConsole.pas';
 
 var
   // Delphi 7 leaks interfaces from here :-(

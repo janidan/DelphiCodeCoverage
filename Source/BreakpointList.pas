@@ -3,6 +3,7 @@
 (*                                                                     *)
 (* A quick hack of a Code Coverage Tool for Delphi                     *)
 (* by Christer Fahlgren and Nick Ring                                  *)
+(* Portions by Tobias Rörig                                            *)
 (*                                                                     *) 
 (* This Source Code Form is subject to the terms of the Mozilla Public *)
 (* License, v. 2.0. If a copy of the MPL was not distributed with this *)
@@ -13,17 +14,17 @@ unit BreakPointList;
 interface
 
 uses
-  JclStringLists,
+  System.Generics.Collections,
   I_BreakPoint,
-  I_BreakPointList;
+  I_BreakPointList,
+  I_DebugModule;
 
 type
   TBreakPointList = class(TInterfacedObject, IBreakPointList)
   strict private
-    FBreakPointLst: IJclStringList;
+    FBreakPointLst: TDictionary<Pointer,IBreakPoint>;
   public
-    function GetBreakPoint(const AIndex: Integer): IBreakPoint;
-    property BreakPoint[const AIndex: Integer]: IBreakPoint read GetBreakPoint; default;
+    function GetBreakPoints:TArray<IBreakPoint>;
 
     function GetBreakPointByAddress(const AAddress: Pointer): IBreakPoint;
     property BreakPointByAddress[const AAddress: Pointer]: IBreakPoint read GetBreakPointByAddress;
@@ -32,36 +33,28 @@ type
     destructor Destroy; override;
 
     procedure Add(const ABreakPoint: IBreakPoint);
+    procedure RemoveModuleBreakpoints(const AModule: IDebugModule);
 
     function Count: Integer;
-    procedure SetCapacity(const AValue: Integer);
   end;
 
 implementation
 
 uses
   Classes,
-  SysUtils;
+  SysUtils,
+  DebuggerUtils;
 
 constructor TBreakPointList.Create;
 begin
-  inherited;
-
-  FBreakPointLst            := TJclStringList.Create;
-  FBreakPointLst.Sorted     := True;
-  FBreakPointLst.Duplicates := dupError;
+  inherited Create;
+  FBreakPointLst := TDictionary<Pointer,IBreakPoint>.Create(100);
 end;
 
 destructor TBreakPointList.Destroy;
 begin
-  FBreakPointLst := nil;
-
-  inherited;
-end;
-
-function TBreakPointList.GetBreakPoint(const AIndex: Integer): IBreakPoint;
-begin
-  Result := IBreakPoint(FBreakPointLst.Interfaces[AIndex]);
+  FBreakPointLst.Free;
+  inherited Destroy;
 end;
 
 function TBreakPointList.Count: Integer;
@@ -71,17 +64,25 @@ end;
 
 procedure TBreakPointList.Add(const ABreakPoint: IBreakPoint);
 begin
-  FBreakPointLst.KeyInterface[IntToHex(Integer(ABreakPoint.Address), 8)] := ABreakPoint;
+  FBreakPointLst.AddOrSetValue(ABreakPoint.Address, ABreakPoint);
 end;
 
 function TBreakPointList.GetBreakPointByAddress(const AAddress: Pointer): IBreakPoint;
 begin
-  Result := IBreakPoint(FBreakPointLst.KeyInterface[IntToHex(Integer(AAddress), 8)]);
+  FBreakPointLst.TryGetValue(AAddress, Result);
 end;
 
-procedure TBreakPointList.SetCapacity(const AValue: Integer);
+function TBreakPointList.GetBreakPoints: TArray<IBreakPoint>;
 begin
-  FBreakPointLst.Capacity := AValue;
+  Result := FBreakPointLst.Values.ToArray;
+end;
+
+procedure TBreakPointList.RemoveModuleBreakpoints(const AModule: IDebugModule);
+var
+  vAddress: NativeUInt;
+begin
+  for vAddress := aModule.CodeBegin to AModule.CodeEnd do
+    FBreakPointLst.Remove(Pointer(vAddress));
 end;
 
 end.

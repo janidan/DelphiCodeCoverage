@@ -126,6 +126,8 @@
         <DCCReference Include="ModuleNameSpaceUnit.pas"/>
         <DCCReference Include="uConsoleOutput.pas"/>
         <DCCReference Include="HtmlHelper.pas"/>
+        <DCCReference Include="DebuggerUtils.pas"/>
+        <DCCReference Include="LoggerConsole.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
