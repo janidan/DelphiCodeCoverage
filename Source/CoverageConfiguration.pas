@@ -84,6 +84,7 @@ type
     procedure ParseSourcePathsFileSwitch(var AParameter: Integer);
     procedure ParseOutputDirectorySwitch(var AParameter: Integer);
     procedure ParseLoggingTextSwitch(var AParameter: Integer);
+    procedure ParseLoggingConsoleSwitch(var AParameter: Integer);
     procedure ParseWinApiLoggingSwitch(var AParameter: Integer);
     procedure ParseDprojSwitch(var AParameter: Integer);
     procedure ParseProjGroupSwitch(var AParameter: Integer);
@@ -134,6 +135,7 @@ uses
   IOUtils,
   {$ENDIF}
   LoggerTextFile,
+  LoggerConsole,
   LoggerAPI,
   XMLDoc,
   Windows,
@@ -606,6 +608,8 @@ begin
     ParseLoggingTextSwitch(AParameter)
   else if SwitchItem = I_CoverageConfiguration.cPARAMETER_LOGGING_WINAPI then
     ParseWinApiLoggingSwitch(AParameter)
+  else if SwitchItem = I_CoverageConfiguration.cPARAMETER_LOGGING_CONSOLE then
+    ParseLoggingConsoleSwitch(AParameter)
   else if (SwitchItem = I_CoverageConfiguration.cPARAMETER_FILE_EXTENSION_EXCLUDE) then
     FStripFileExtension := True
   else if (SwitchItem = I_CoverageConfiguration.cPARAMETER_FILE_EXTENSION_INCLUDE) then
@@ -876,6 +880,13 @@ begin
     on EParameterIndexException do
       raise EConfigurationException.Create('Expected parameter for output directory')
   end;
+end;
+
+procedure TCoverageConfiguration.ParseLoggingConsoleSwitch(var AParameter: Integer);
+begin
+  Inc(AParameter);
+  if Assigned(FLogManager) then
+    FLogManager.AddLogger(TLoggerConsole.Create);
 end;
 
 procedure TCoverageConfiguration.ParseLoggingTextSwitch(var AParameter: Integer);

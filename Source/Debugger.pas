@@ -230,6 +230,9 @@ begin
     );
   ConsoleOutput(I_CoverageConfiguration.cPARAMETER_LOGGING_WINAPI +
       '               -- Use WinAPI OutputDebugString for debug');
+  ConsoleOutput(I_CoverageConfiguration.cPARAMETER_LOGGING_CONSOLE +
+      '               -- Use Console for debug output.');
+  ConsoleOutput('                       Note: Gives duplicate entries when used together with verbose output.');
   ConsoleOutput(I_CoverageConfiguration.cPARAMETER_FILE_EXTENSION_INCLUDE +
       '                -- include file prefixes. This stops "Common.Encodings"'
     );

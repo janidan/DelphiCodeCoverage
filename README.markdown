@@ -79,6 +79,7 @@ unfinished form on my harddrive for more than a year. Finally it slipped out.
     <tr><td><code>-a Param Param2</code></td><td>Parameters to pass on to the application that shall be checked for code coverage. ^ is an escape character</td></tr>
     <tr><td><code>-lt [filename]</code></td><td>Log events to a text log file. Default file name is: Delphi-Code-Coverage-Debug.log</td></tr>
     <tr><td><code>-lapi</code></td><td>Log events to the Windows API OutputDebugString</td></tr>
+	<tr><td><code>-lcon</code></td><td>Log events to the Windows console</td></tr>
     <tr><td><code>-ife</code></td><td>Include File Extension - This will stop "Common.Encodings" being 'converted' to "Common"</td></tr>
     <tr><td><code>-efe</code></td><td>Exclude File Extension - This will 'converted' "Common.Encodings.pas" to "Common.Encodings" (and sadly, "Common.Encodings" to "Common"). This is on by default.</td></tr>
     <tr><td><code>-emma</code></td><td>Generate emma coverage output - Generate emma output as 'coverage.es' in the output directory.</td></tr>
