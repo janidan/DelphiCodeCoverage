@@ -884,7 +884,6 @@ end;
 
 procedure TCoverageConfiguration.ParseLoggingConsoleSwitch(var AParameter: Integer);
 begin
-  Inc(AParameter);
   if Assigned(FLogManager) then
     FLogManager.AddLogger(TLoggerConsole.Create);
 end;
@@ -911,7 +910,6 @@ end;
 
 procedure TCoverageConfiguration.ParseWinApiLoggingSwitch(var AParameter: Integer);
 begin
-  Inc(AParameter);
   FApiLogging := True;
   if Assigned(FLogManager) then
     FLogManager.AddLogger(TLoggerAPI.Create);

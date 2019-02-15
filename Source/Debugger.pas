@@ -1169,6 +1169,7 @@ begin
 
   FBreakPointList.RemoveModuleBreakpoints(DbgModule);
   FDebugProcess.RemoveModule(DbgModule);
+  FLogManager.Log(Format('UnLoading DLL: %s (%s)',[ DbgModule.Name, AddressToString(DbgModule.Base)] ));
 end;
 
 procedure TDebugger.HandleOutputDebugString(const ADebugEvent: DEBUG_EVENT);
