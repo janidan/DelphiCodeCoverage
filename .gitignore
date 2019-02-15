@@ -9,3 +9,26 @@ CodeCoverage/CodeCoverage.drc
 build/*/*.*
 build/*/*/*.*
 dunit.ini
+
+*.res
+
+# Delphi local files (user-specific info)
+*.local
+*.user
+*.identcache
+*.projdata
+*.tvsconfig
+*.dsk
+*.cbk
+
+# Delphi history and backups
+__history/
+__recovery/
+*.~*
+
+# Delphi modeling support
+ModelSupport*
+LibrarySupport/
+
+# Castalia statistics file (since XE7 Castalia is distributed with Delphi)
+*.stat

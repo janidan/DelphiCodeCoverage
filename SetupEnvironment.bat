@@ -12,6 +12,10 @@ if "%DPF%"=="" (
 	SET DPF="%PROGRAMFILES%"
 )
 
+IF EXIST "%DPF%\Embarcadero\Studio\20.0\bin\rsvars.bat" (
+  ECHO Found Delphi 10.3 Rio
+  CALL "%DPF%\Embarcadero\Studio\20.0\bin\rsvars.bat"
+) ELSE (
 IF EXIST "%DPF%\Embarcadero\Studio\19.0\bin\rsvars.bat" (
   ECHO Found Delphi 10.2 Tokyo
   CALL "%DPF%\Embarcadero\Studio\19.0\bin\rsvars.bat"
@@ -45,6 +49,7 @@ IF EXIST "%DPF%\Embarcadero\Studio\14.0\bin\rsvars.bat" (
       )
     )
   )
+)
 )
 )
 )
