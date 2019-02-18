@@ -23,10 +23,14 @@ function AddressToString(const address:UInt64): string; overload;
 function VAFromAddress(const AAddr: Pointer; const AAddressCodebase: NativeUInt): DWORD; inline;
 function AddressFromVA(const AVA: DWORD; const AAddressCodebase: NativeUInt): Pointer; inline;
 
+function GetDllName(const aProcessHandle: THandle; const lpBaseOfDll: Pointer): string;
+
 implementation
 
 uses
-  System.SysUtils;
+  System.SysUtils,
+  System.IOUtils,
+  Winapi.PsAPI;
 
 function AddressToString(const address:Pointer): string;
 begin
@@ -58,6 +62,43 @@ end;
 function AddressFromVA(const AVA: DWORD;  const AAddressCodebase: NativeUInt): Pointer; inline;
 begin
   Result := Pointer(NativeUInt(AVA + AAddressCodebase));
+end;
+
+function ExpandVolumeName(const AFileName: string): string;
+var
+  LogicalDrives: TArray<string>;
+  Drive: string;
+  DeviceDrive: string;
+
+  TempVolumeName: array[0..MAX_PATH + 1] of Char;
+  TempVolumeNameLength: DWORD;
+  VolumeName: string;
+begin
+  LogicalDrives:= TDirectory.GetLogicalDrives;
+  for Drive in LogicalDrives do
+  begin
+    DeviceDrive := Copy(Drive,1,2); // remove the tailing Backslash for the QueryDosDevice API call
+    TempVolumeNameLength := QueryDosDevice(PChar(DeviceDrive), TempVolumeName, MAX_PATH);
+    if TempVolumeNameLength > 0 then
+    begin
+      VolumeName := TempVolumeName;
+      if Pos(VolumeName, AFileName) > 0 then
+      begin
+        TempVolumeNameLength := Length(VolumeName);
+        Result := DeviceDrive + Copy(AFileName, TempVolumeNameLength + 1, Length(AFileName) - TempVolumeNameLength);
+        Break;
+      end;
+    end;
+  end;
+end;
+
+function GetDllName(const aProcessHandle: THandle; const lpBaseOfDll: Pointer): string;
+var
+  MappedName: array [0..MAX_PATH + 1] of Char;
+begin
+  Result := '';
+  if GetMappedFileName(aProcessHandle, lpBaseOfDll, @MappedName[0], MAX_PATH) > 0 then
+    Result := ExpandVolumeName(MappedName);
 end;
 
 

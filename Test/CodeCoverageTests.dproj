@@ -8,7 +8,7 @@
         <MainSource>CodeCoverageTests.dpr</MainSource>
         <Platform Condition="'$(Platform)'==''">Win32</Platform>
         <ProjectGuid>{FC98FAC7-E261-4363-B04E-2C0F432CCF9B}</ProjectGuid>
-        <ProjectVersion>18.5</ProjectVersion>
+        <ProjectVersion>18.6</ProjectVersion>
         <TargetedPlatforms>3</TargetedPlatforms>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
@@ -119,6 +119,7 @@
         <DCCReference Include="..\Source\I_DebugModule.pas"/>
         <DCCReference Include="..\Source\I_DebugProcess.pas"/>
         <DCCReference Include="..\Source\I_DebugThread.pas"/>
+        <DCCReference Include="..\Source\LoggerConsole.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

@@ -46,8 +46,6 @@ type
     FTestExeExitCode: Integer;
     FLastBreakPoint: IBreakPoint;
 
-    function GetImageName(const APtr: Pointer; const AUnicode: Word;
-      const AlpBaseOfDll: Pointer; const AHandle: THANDLE): string;
     procedure AddBreakPoints(
       const AModuleList: TStrings;
       const AExcludedModuleList: TStrings;
@@ -672,42 +670,6 @@ begin
   FLogManager.Log('Done adding  BreakPoints');
 end;
 
-function TDebugger.GetImageName(const APtr: Pointer; const AUnicode: Word;
-  const AlpBaseOfDll: Pointer; const AHandle: THANDLE): string;
-var
-  PtrDllName: Pointer;
-  ByteRead: DWORD;
-  // Double the MAX_PATH to ensure room for unicode filenames.
-  ImageName: array [0 .. MAX_PATH] of Char;
-begin
-  Result := '';
-  if (APtr <> nil) then
-  begin
-    if ReadProcessMemory(AHandle, APtr, @PtrDllName, sizeof(PtrDllName), @ByteRead) then
-    begin
-      if (PtrDllName <> nil) then
-      begin
-        if ReadProcessMemory(AHandle, PtrDllName, @ImageName, sizeof(ImageName), @ByteRead) then
-        begin
-          if AUnicode <> 0 then
-            Result := string(PWideChar(@ImageName))
-          else
-            Result := string(PChar(@ImageName));
-        end;
-      end;
-    end
-    else
-    begin
-      // if ReadProcessMemory failed
-      FLogManager.Log('ReadProcessMemory error: ' + SysErrorMessage(GetLastError));
-      if GetModuleFileNameEx (AHandle, HMODULE(AlpBaseOfDll), ImageName, MAX_PATH) = 0 then
-        FLogManager.Log('GetModuleFileNameEx error: ' + SysErrorMessage(GetLastError))
-      else
-        Result := string(PWideChar(@ImageName));
-    end;
-  end;
-end;
-
 procedure TDebugger.HandleCreateProcess(const ADebugEvent: DEBUG_EVENT);
 var
   DebugThread: IDebugThread;
@@ -1084,18 +1046,17 @@ var
   ModuleNameSpace: TModuleNameSpace;
 begin
   ExtraMsg := '';
-  DllName := GetImageName(
-    ADebugEvent.LoadDll.lpImageName,
-    ADebugEvent.LoadDll.fUnicode,
-    ADebugEvent.LoadDll.lpBaseOfDll,
-    FDebugProcess.Handle);
+  DllName := GetDllName(FDebugProcess.Handle, ADebugEvent.LoadDll.lpBaseOfDll);
+
+  FLogManager.Log(Format('Loading DLL (%s) at addr: %s with Handle %d',
+        [DllName, AddressToString(ADebugEvent.LoadDll.lpBaseOfDll), ADebugEvent.LoadDll.hFile]));
 
   if DllName = 'WOW64_IMAGE_SECTION' then
   begin
     FLogManager.Log('DllName = WOW64_IMAGE_SECTION');
     Exit;
   end;
-  if DllName <> '' then
+  if (DllName <> '') and PathIsAbsolute(DllName) then
   begin
     PEImage := TJCLPEImage.Create;
     try
@@ -1120,7 +1081,7 @@ begin
       Module := TDebugModule.Create(
         DllName,
         ADebugEvent.LoadDll.hFile,
-        HMODULE(ADebugEvent.LoadDll.lpBaseOfDll),
+        NativeUInt(ADebugEvent.LoadDll.lpBaseOfDll),
         Size,
         MapScanner);
       FDebugProcess.AddModule(Module);
@@ -1154,6 +1115,8 @@ begin
         ' was already loaded. Skipping breakpoint generation and coverage for subsequent load.');
     end;
   end;
+
+  CloseHandle(ADebugEvent.LoadDll.hFile); // according to MS Documentation we shall close the handle once we are done.
 end;
 
 procedure TDebugger.HandleUnLoadDLL(const ADebugEvent: DEBUG_EVENT);

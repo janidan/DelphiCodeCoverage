@@ -43,7 +43,8 @@ uses
   I_Debugger in '..\Source\I_Debugger.pas',
   I_DebugModule in '..\Source\I_DebugModule.pas',
   I_DebugProcess in '..\Source\I_DebugProcess.pas',
-  I_DebugThread in '..\Source\I_DebugThread.pas';
+  I_DebugThread in '..\Source\I_DebugThread.pas',
+  LoggerConsole in '..\Source\LoggerConsole.pas';
 
 {$R *.RES}
 
