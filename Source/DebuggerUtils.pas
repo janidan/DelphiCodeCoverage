@@ -85,7 +85,7 @@ begin
       if Pos(VolumeName, AFileName) > 0 then
       begin
         TempVolumeNameLength := Length(VolumeName);
-        Result := DeviceDrive + Copy(AFileName, TempVolumeNameLength + 1, Length(AFileName) - TempVolumeNameLength);
+        Result := DeviceDrive + Copy(AFileName, TempVolumeNameLength + 1, DWORD(Length(AFileName)) - TempVolumeNameLength);
         Break;
       end;
     end;

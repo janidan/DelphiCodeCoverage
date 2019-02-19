@@ -124,6 +124,9 @@ type
 
   EConfigurationException = class(Exception);
 
+var
+  G_CoverageConfiguration : ICoverageConfiguration;
+
 implementation
 
 uses

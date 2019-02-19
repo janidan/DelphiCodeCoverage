@@ -30,26 +30,29 @@ type
     FBreakCount: integer;
     FProcess: IDebugProcess;
     FModule: IDebugModule;
-
-    FDetailsCount: Integer;
-    FDetails: array of TBreakPointDetail;
-
+    FDetails: TBreakPointDetail;
     FLogManager: ILogManager;
 
+    procedure InternalClear(const AThread: IDebugThread; const aSetTrapFlag: Boolean);
+
     function DeActivate: Boolean;
+    function Hit(const AThread: IDebugThread): Boolean;
   public
     constructor Create(const ADebugProcess: IDebugProcess;
                        const AAddress: Pointer;
                        const AModule: IDebugModule;
                        const ALogManager: ILogManager);
+    procedure BeforeDestruction; override;
+
 
     procedure Clear(const AThread: IDebugThread);
 
     procedure AddDetails(const AModuleName: string;
                          const AUnitName: string;
                          const ALineNumber: Integer);
-    function DetailCount: Integer;
-    function DetailByIndex(const AIndex: Integer): TBreakPointDetail;
+
+    function Details: TBreakPointDetail;
+    function DetailsToString: string;
 
     function IsActive: Boolean;
 
@@ -69,6 +72,7 @@ implementation
 uses
   SysUtils,
   Windows,
+  CoverageConfiguration,
   DebuggerUtils;
 
 constructor TBreakPoint.Create(const ADebugProcess: IDebugProcess;
@@ -84,9 +88,6 @@ begin
   FBreakCount := 0;
   FModule := AModule;
 
-  FDetailsCount := 0;
-  SetLength(FDetails, 2);
-
   FLogManager := ALogManager;
 end;
 
@@ -95,12 +96,8 @@ var
   OpCode : Byte;
   BytesRead: DWORD;
   BytesWritten: DWORD;
-  DetailIndex: Integer;
 begin
-  FLogManager.Log('TBreakPoint.Activate:');
-
   Result := FActive;
-
   if not Result then
   begin
     BytesRead := FProcess.ReadProcessMemory(FAddress, @FOld_Opcode, 1, true);
@@ -111,15 +108,7 @@ begin
       FlushInstructionCache(FProcess.Handle, FAddress, 1);
       if BytesWritten = 1 then
       begin
-        for DetailIndex := 0 to Pred(FDetailsCount) do
-        begin
-          FLogManager.Log(
-            'Activate ' + FDetails[DetailIndex].UnitName +
-            ' line ' + IntToStr(FDetails[DetailIndex].Line) +
-            ' BreakPoint at:' + AddressToString(FAddress)
-          );
-        end;
-
+        FLogManager.Log('Activating ' + DetailsToString);
         FActive := True;
         Result  := True;
       end;
@@ -130,7 +119,6 @@ end;
 function TBreakPoint.DeActivate: Boolean;
 var
   BytesWritten: DWORD;
-  DetailIndex: Integer;
 begin
   Result := not FActive;
 
@@ -138,76 +126,35 @@ begin
   begin
     BytesWritten := FProcess.writeProcessMemory(FAddress, @FOld_Opcode, 1,true);
     FlushInstructionCache(FProcess.Handle,FAddress,1);
-
-    for DetailIndex := 0 to Pred(FDetailsCount) do
-    begin
-      FLogManager.Log(
-        'De-Activate ' + FDetails[DetailIndex].UnitName +
-        ' line ' + IntToStr(FDetails[DetailIndex].Line) +
-        ' BreakPoint at:' + AddressToString(FAddress)
-      );
-    end;
-
+    FLogManager.Log('Deactivating Breakpoint: ' + DetailsToString);
     Result  := (BytesWritten = 1);
     FActive := False;
   end;
 end;
 
-function TBreakPoint.DetailByIndex(const AIndex: Integer): TBreakPointDetail;
+function TBreakPoint.Details: TBreakPointDetail;
 begin
-  Result := FDetails[AIndex];
+  Result := FDetails;
 end;
 
-function TBreakPoint.DetailCount: Integer;
+function TBreakPoint.DetailsToString: string;
 begin
-  Result := FDetailsCount;
+  Result := Format('Breakpoint at %s: %s[%d]',[
+            AddressToString(FAddress), FDetails.ModuleName, FDetails.Line ]);
 end;
 
 procedure TBreakPoint.AddDetails(const AModuleName: string;
                                  const AUnitName: string;
                                  const ALineNumber: Integer);
 begin
-  if (FDetailsCount = Length(FDetails)) then
-  begin
-    SetLength(FDetails, FDetailsCount + 5);
-  end;
-
-  FDetails[FDetailsCount].ModuleName := AModuleName;
-  FDetails[FDetailsCount].UnitName   := AUnitName;
-  FDetails[FDetailsCount].Line       := ALineNumber;
-
-  Inc(FDetailsCount);
+  FDetails.ModuleName := AModuleName;
+  FDetails.UnitName := AUnitName;
+  FDetails.Line := ALineNumber;
 end;
 
 procedure TBreakPoint.Clear(const AThread: IDebugThread);
-var
-  ContextRecord: CONTEXT;
-  Result: BOOL;
 begin
-  FLogManager.Log('Clearing BreakPoint at ' + AddressToString(FAddress));
-
-  ContextRecord.ContextFlags := CONTEXT_CONTROL;
-
-  Result := GetThreadContext(AThread.Handle, ContextRecord);
-  if Result then
-  begin
-    DeActivate;
-    {$IFDEF CPUX64}
-    Dec(ContextRecord.Rip);
-    {$ELSE}
-    Dec(ContextRecord.Eip);
-    {$ENDIF}
-    ContextRecord.ContextFlags := CONTEXT_CONTROL;
-    Result := SetThreadContext(AThread.Handle, ContextRecord);
-    if (not Result) then
-    begin
-      FLogManager.Log('Failed setting thread context:' + I_LogManager.LastErrorInfo);
-    end;
-  end
-  else
-  begin
-    FLogManager.Log('Failed to get thread context   ' + I_LogManager.LastErrorInfo);
-  end;
+  InternalClear(AThread, False);
 end;
 
 function TBreakPoint.IsActive: Boolean;
@@ -225,6 +172,12 @@ begin
   Result := FModule;
 end;
 
+procedure TBreakPoint.BeforeDestruction;
+begin
+  FLogManager.Log('Destroying ' + DetailsToString + ' Hitcount: ' + IntToStr(FBreakCount));
+  inherited BeforeDestruction;
+end;
+
 function TBreakPoint.BreakCount: Integer;
 begin
   Result := FBreakCount;
@@ -235,9 +188,49 @@ begin
   Inc(FBreakCount);
 end;
 
+procedure TBreakPoint.InternalClear(const AThread: IDebugThread; const aSetTrapFlag: Boolean);
+const
+  CONTEXT_FLAG_TRAP = $100;
+var
+  ContextRecord: CONTEXT;
+  Result: BOOL;
+begin
+  FLogManager.Log('Clearing ' + DetailsToString + ' Hitcount: ' + IntToStr(FBreakCount));
+
+  ContextRecord.ContextFlags := CONTEXT_CONTROL;
+  Result := GetThreadContext(AThread.Handle, ContextRecord);
+  if Result then
+  begin
+    DeActivate; // If aSetTrapFlag -> reenabled in the STATUS_SINGLE_STEP debugger event
+    // Rewind to previous instruction
+    {$IF Defined(CPUX64)}
+    Dec(ContextRecord.Rip);
+    {$ELSEIF Defined(CPUX86)}
+    Dec(ContextRecord.Eip);
+    {$ELSE}
+      {$MESSAGE FATAL 'Unsupported Platform'}
+    {$ENDIF}
+    ContextRecord.ContextFlags := CONTEXT_CONTROL;
+    if aSetTrapFlag then // Set TF (Trap Flag so we get debug exception after next instruction
+      ContextRecord.EFlags := ContextRecord.EFlags or CONTEXT_FLAG_TRAP;
+    Result := SetThreadContext(AThread.Handle, ContextRecord);
+    if (not Result) then
+      FLogManager.Log('Failed setting thread context:' + I_LogManager.LastErrorInfo);
+  end
+  else
+    FLogManager.Log('Failed to get thread context   ' + I_LogManager.LastErrorInfo);
+end;
+
 function TBreakPoint.GetCovered: Boolean;
 begin
   Result := FBreakCount > 0;
+end;
+
+function TBreakPoint.Hit(const AThread: IDebugThread): Boolean;
+begin
+  IncBreakCount;
+  Result := BreakCount < G_CoverageConfiguration.LineCountLimit;
+  InternalClear(AThread, Result);
 end;
 
 end.

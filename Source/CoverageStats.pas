@@ -14,7 +14,7 @@ interface
 
 uses
   Classes,
-  JclStringLists,
+  System.Generics.Collections,
   I_CoverageStats;
 
 type
@@ -27,18 +27,11 @@ type
     FPercentCovered: Integer;
     FCoveredLineCount: Integer;
 
-    FCoverageLineCount: Integer;
-    FCoverageLines: array of TCoverageLine;
-
-    FCoverageStatsList: IJclStringList;
-    procedure UpdateLineCapacity;
+    FCoverageLines: TDictionary<Integer, TCoverageLine>;
+    FCoverageStatsList: TDictionary<string, ICoverageStats>;
     procedure UpdatePercentCovered;
-    function CoveredLineIndex(const ALineNumber: Integer): Integer;
   public
-    constructor Create(
-      const AName: string;
-      const AParent: ICoverageStats
-    );
+    constructor Create(const AName: string; const AParent: ICoverageStats);
     destructor Destroy; override;
 
     procedure Calculate;
@@ -58,16 +51,17 @@ type
     function Parent: ICoverageStats;
 
     function GetCoverageLineCount: Integer;
-    function GetCoverageLine(const AIndex: Integer): TCoverageLine;
-    property CoverageLine[const AIndex: Integer]: TCoverageLine read GetCoverageLine;
+    function CoverageLines: TArray<TCoverageLine>;
 
     procedure AddLineCoverage(const ALineNumber: Integer; const ALineCount: Integer);
+    function TryGetLineCoverage(const ALineNumber: Integer; out ACoverageLine: TCoverageLine) : Boolean;
   end;
 
 implementation
 
 uses
-  SysUtils;
+  System.SysUtils,
+  System.Generics.Defaults;
 
 constructor TCoverageStats.Create(
   const AName: string;
@@ -77,85 +71,49 @@ begin
 
   FName := AName;
 
-  FCoverageStatsList := TJclStringList.Create;
-  FCoverageStatsList.Sorted := True;
-  FCoverageStatsList.Duplicates := dupError;
-
-  FCoverageLineCount := 0;
-  SetLength(FCoverageLines, FCoverageLineCount);
+  FCoverageStatsList := TDictionary<string, ICoverageStats>.Create;
+  FCoverageLines := TDictionary<Integer, TCoverageLine>.Create;
 
   FParent := Pointer(AParent);
 end;
 
 destructor TCoverageStats.Destroy;
 begin
-  FCoverageStatsList := nil;
+  FCoverageStatsList.Free;
+  FCoverageLines.Free;
 
   inherited;
 end;
 
-procedure TCoverageStats.AddLineCoverage(
-  const ALineNumber: Integer;
-  const ALineCount: Integer);
+procedure TCoverageStats.AddLineCoverage(const ALineNumber: Integer; const ALineCount: Integer);
 var
-  LineNumber: Integer;
-  LineIndex: Integer;
+  vLineCoverage: TCoverageLine;
 begin
-  LineIndex := CoveredLineIndex(ALineNumber);
-  if LineIndex <> -1 then
+  if FCoverageLines.TryGetValue(ALineNumber, vLineCoverage) then
   begin
-    FCoverageLines[LineIndex].LineCount := FCoverageLines[LineIndex].LineCount + ALineCount;
+    vLineCoverage.LineCount := vLineCoverage.LineCount + ALineCount;
   end
   else
   begin
-    UpdateLineCapacity;
-
-    if (FCoverageLineCount > 0)
-    and (ALineNumber < FCoverageLines[Pred(FCoverageLineCount)].LineNumber) then
-    begin
-      //We received a LineNumber that is out of order, sort it in
-      LineNumber := FCoverageLineCount - 1;
-      while (LineNumber > Low(FCoverageLines))
-      and (FCoverageLines[LineNumber - 1].LineNumber > ALineNumber) do
-      begin
-        Dec(LineNumber);
-      end;
-
-      // Shift everything up to sort it in
-      for LineIndex := FCoverageLineCount - 1 downto LineNumber do
-      begin
-        FCoverageLines[LineIndex + 1] := FCoverageLines[LineIndex];
-      end;
-
-      // And put in the new item sorted
-      FCoverageLines[LineNumber].LineNumber := ALineNumber;
-      FCoverageLines[LineNumber].LineCount := FCoverageLines[LineNumber].LineCount + ALineCount;
-    end
-    else
-    begin
-      //Append in the end
-      FCoverageLines[FCoverageLineCount].LineNumber := ALineNumber;
-      FCoverageLines[FCoverageLineCount].LineCount := FCoverageLines[FCoverageLineCount].LineCount + ALineCount;
-    end;
-
-    Inc(FCoverageLineCount);
+    vLineCoverage.LineNumber := ALineNumber;
+    vLineCoverage.LineCount := ALineCount;
+    FCoverageLines.Add(ALineNumber, vLineCoverage);
   end;
 end;
 
 procedure TCoverageStats.Calculate;
 var
-  StatIndex: Integer;
   CurrentStatistics: ICoverageStats;
+  vLineCoverage: TCoverageLine;
 begin
   FLineCount := 0;
   FPercentCovered := 0;
   FCoveredLineCount := 0;
 
-  if (FCoverageLineCount = 0) then
+  if (FCoverageLines.Count = 0) then
   begin
-    for StatIndex := 0 to Pred(FCoverageStatsList.Count) do
+    for CurrentStatistics in FCoverageStatsList.Values do
     begin
-      CurrentStatistics := ICoverageStats(Self.CoverageReport[StatIndex]);
       CurrentStatistics.Calculate;
 
       Inc(FLineCount, CurrentStatistics.LineCount);
@@ -167,13 +125,10 @@ begin
   end
   else
   begin
-    FLineCount := FCoverageLineCount;
-
-    for StatIndex := 0 to Pred(FCoverageLineCount) do
-    begin
-      if FCoverageLines[StatIndex].IsCovered then
+    FLineCount := GetCoverageLineCount;
+    for vLineCoverage in FCoverageLines.Values.ToArray do
+      if vLineCoverage.IsCovered then
         Inc(FCoveredLineCount);
-    end;
 
     if (FCoveredLineCount > 0) then
       UpdatePercentCovered;
@@ -185,35 +140,44 @@ begin
   Result := FCoverageStatsList.Count;
 end;
 
-function TCoverageStats.GetCoverageLine(const AIndex: Integer): TCoverageLine;
-begin
-  Result := FCoverageLines[AIndex];
-end;
-
 function TCoverageStats.GetCoverageLineCount: Integer;
 begin
-  Result := FCoverageLineCount;
+  Result := FCoverageLines.Count;
 end;
 
 function TCoverageStats.GetCoverageReportByName(const AName: string): ICoverageStats;
 begin
-  Result := ICoverageStats(FCoverageStatsList.KeyInterface[AName]);
-
-  if not Assigned(Result) then
+  FCoverageStatsList.TryGetValue(AName, Result);
+  if not FCoverageStatsList.TryGetValue(AName, Result) then
   begin
     Result := TCoverageStats.Create(AName, Self);
-    FCoverageStatsList.KeyInterface[AName] := Result;
+    FCoverageStatsList.Add(AName, Result);
   end;
 end;
 
 function TCoverageStats.GetCoverageReportByIndex(const AIndex: Integer): ICoverageStats;
 begin
-  Result := ICoverageStats(FCoverageStatsList.Interfaces[AIndex]);
+  Result := FCoverageStatsList.Values.ToArray[AIndex];
 end;
 
 function TCoverageStats.Name: string;
 begin
   Result := FName;
+end;
+
+function TCoverageStats.CoverageLines: TArray<TCoverageLine>;
+begin
+  Result := FCoverageLines.Values.ToArray;
+  TArray.Sort<TCoverageLine>(Result, TComparer<TCoverageLine>.Construct(
+                            function(const Left, Right: TCoverageLine): Integer
+                            begin
+                              if Left.LineNumber < Right.LineNumber then
+                                Exit(-1)
+                              else if Left.LineNumber > Right.LineNumber then
+                                Exit(1)
+                              else
+                                Exit(0);
+                            end));
 end;
 
 function TCoverageStats.CoveredLineCount: Integer;
@@ -245,36 +209,19 @@ begin
   end;
 end;
 
+function TCoverageStats.TryGetLineCoverage(const ALineNumber: Integer; out ACoverageLine: TCoverageLine): Boolean;
+begin
+  Result := FCoverageLines.TryGetValue(ALineNumber, ACoverageLine);
+end;
+
 function TCoverageStats.Parent: ICoverageStats;
 begin
   Result := ICoverageStats(FParent);
 end;
 
-function TCoverageStats.CoveredLineIndex(const ALineNumber: Integer): Integer;
-var
-  Line: Integer;
-begin
-  Result := -1;
-  for Line := 0 to Pred(FCoverageLineCount) do
-  begin
-    if CoverageLine[Line].LineNumber = ALineNumber then
-    begin
-      Exit(Line);
-    end;
-  end;
-end;
-
 procedure TCoverageStats.UpdatePercentCovered;
 begin
   FPercentCovered := FCoveredLineCount * 100 div FLineCount;
-end;
-
-procedure TCoverageStats.UpdateLineCapacity;
-begin
-  if FCoverageLineCount = Length(FCoverageLines) then
-  begin
-    SetLength(FCoverageLines, FCoverageLineCount + 256);
-  end;
 end;
 
 end.

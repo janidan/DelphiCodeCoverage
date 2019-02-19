@@ -105,13 +105,13 @@ begin
       FCodeEnd := FCodeBegin + vSectionHeader.Misc.VirtualSize;
     end else
     begin
-      {$IFDEF WIN32}
+      {$IF Defined(WIN32)}
       FCodeBegin := FBase + PEImage.OptionalHeader32.BaseOfCode;
       FCodeEnd := FCodeBegin + PEImage.OptionalHeader32.SizeOfCode;
-      {$ELSEIF WIN64}
+      {$ELSEIF Defined(WIN64)}
       FCodeBegin := FBase + PEImage.OptionalHeader64.BaseOfCode;
       FCodeEnd := FCodeBegin + PEImage.OptionalHeader64.SizeOfCode;
-      {$ELSEIF}
+      {$ELSE}
         {$MESSAGE FATAL 'Unsupported Platform'}
       {$ENDIF}
     end;

@@ -21,6 +21,7 @@ type
   TLogManager = class(TInterfacedObject, ILogManager)
   private
     FLoggers: TList<ILogger>;
+    FLevel: Integer;
   public
     constructor Create;
     destructor Destroy; override;
@@ -28,6 +29,9 @@ type
     procedure Log(const AMessage : string);
 
     procedure AddLogger(const ALogger : ILogger);
+
+    procedure Indent;
+    procedure Undent;
   end;
 
 implementation
@@ -47,6 +51,11 @@ begin
   inherited;
 end;
 
+procedure TLogManager.Indent;
+begin
+  inc(FLevel);
+end;
+
 procedure TLogManager.AddLogger(const ALogger: ILogger);
 begin
   FLoggers.Add(ALogger);
@@ -57,7 +66,14 @@ var
   Logger: ILogger;
 begin
   for Logger in FLoggers do
-    Logger.Log(AMessage);
+    Logger.Log(StringOfChar(' ', FLevel) + AMessage);
+end;
+
+procedure TLogManager.Undent;
+begin
+  Dec(FLevel);
+  if FLevel < 0 then
+    FLevel := 0;
 end;
 
 end.

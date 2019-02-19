@@ -29,6 +29,10 @@ type
     function Activate: Boolean;
 
     function DeActivate: Boolean;
+    ///<summary>Hit the given Breakpoint. If the function returns true,
+    /// the Breakpoint needs to be reactivated in the STATUS_SINGLE_STEP event.
+    /// (Trap flag has been set.)</summary>
+    function Hit(const AThread: IDebugThread): Boolean;
     function BreakCount:integer;
 
     procedure IncBreakCount;
@@ -36,12 +40,13 @@ type
     function Address: Pointer;
     function Module: IDebugModule;
 
-    function DetailCount: Integer;
-    function DetailByIndex(const AIndex: Integer): TBreakPointDetail;
     procedure AddDetails(
       const AModuleName: string;
       const AUnitName: string;
       const ALineNumber: Integer);
+
+    function Details: TBreakPointDetail;
+    function DetailsToString: string;
 
     function IsActive: Boolean;
 

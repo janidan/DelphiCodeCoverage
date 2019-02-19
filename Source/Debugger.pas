@@ -150,6 +150,7 @@ begin
 
   FBreakPointList := TBreakPointList.Create;
   FCoverageConfiguration := TCoverageConfiguration.Create(TCommandLineProvider.Create);
+  G_CoverageConfiguration := FCoverageConfiguration;
 
   FCoverageStats := TCoverageStats.Create('', nil);
 
@@ -162,6 +163,7 @@ end;
 destructor TDebugger.Destroy;
 begin
   FCoverageConfiguration := nil;
+  G_CoverageConfiguration := nil;
   FDebugProcess := nil;
   FBreakPointList := nil;
   FCoverageStats := nil;
@@ -296,8 +298,6 @@ procedure TDebugger.GenerateReport;
 var
   ModuleStats: ICoverageStats;
   UnitStats: ICoverageStats;
-//  BreakPointIndex: Integer;
-  BreakPointDetailIndex: Integer;
   BreakPoint: IBreakPoint;
   BreakPointDetail: TBreakPointDetail;
   CoverageReport: IReport; // TCoverageReport;
@@ -306,30 +306,24 @@ begin
   ModuleStats := nil;
   UnitStats := nil;
 
-  //for BreakPointIndex := 0 to Pred(FBreakPointList.Count) do
   for BreakPoint in FBreakPointList.GetBreakPoints do
   begin
-    //BreakPoint := FBreakPointList[BreakPointIndex];
+    BreakPointDetail := BreakPoint.Details;
 
-    for BreakPointDetailIndex := 0 to Pred(BreakPoint.DetailCount) do
+    if (ModuleStats = nil)
+    or (ModuleStats.Name <> BreakPointDetail.ModuleName) then
     begin
-      BreakPointDetail := BreakPoint.DetailByIndex(BreakPointDetailIndex);
-
-      if (ModuleStats = nil)
-      or (ModuleStats.Name <> BreakPointDetail.ModuleName) then
-      begin
-        UnitStats := nil;
-        ModuleStats := FCoverageStats.CoverageReportByName[BreakPointDetail.ModuleName];
-      end;
-
-      if (UnitStats = nil)
-      or (UnitStats.Name <> BreakPointDetail.UnitName) then
-      begin
-        UnitStats := ModuleStats.CoverageReportByName[BreakPointDetail.UnitName];
-      end;
-
-      UnitStats.AddLineCoverage(BreakPointDetail.Line, BreakPoint.BreakCount);
+      UnitStats := nil;
+      ModuleStats := FCoverageStats.CoverageReportByName[BreakPointDetail.ModuleName];
     end;
+
+    if (UnitStats = nil)
+    or (UnitStats.Name <> BreakPointDetail.UnitName) then
+    begin
+      UnitStats := ModuleStats.CoverageReportByName[BreakPointDetail.UnitName];
+    end;
+
+    UnitStats.AddLineCoverage(BreakPointDetail.Line, BreakPoint.BreakCount);
   end;
 
   FCoverageStats.Calculate;
@@ -544,9 +538,9 @@ begin
         FLogManager.Log('Continue Debug Event error :' + I_LogManager.LastErrorInfo);
         ContProcessEvents := False;
       end;
-    end
-    else
-      FLogManager.Log('Wait For Debug Event timed-out');
+    end;
+//    else
+//      FLogManager.Log('Wait For Debug Event timed-out');
   end;
 end;
 
@@ -569,20 +563,21 @@ var
   Prefix: String;
   UnitNameSpace : String;
 begin
-  UnitNameSpace := '';
-  if Assigned(AModuleNameSpace) then
-    Prefix := AModuleNameSpace.Name + '_'
-  else
-    Prefix := '';
-
   if (AMapScanner <> nil) then
   begin
+    FLogManager.Log('Adding breakpoints for module:' + AModule.Name);
+    FLogManager.Indent;
+
+    UnitNameSpace := '';
+    if Assigned(AModuleNameSpace) then
+      Prefix := AModuleNameSpace.Name + '_'
+    else
+      Prefix := '';
+
     SkippedModules := TStringList.Create;
     try
       SkippedModules.Sorted := True;
       SkippedModules.Duplicates := dupIgnore;
-
-      FLogManager.Log('Adding breakpoints for module:' + AModule.Name);
 
       for LineIndex := 0 to AMapScanner.LineNumbersCnt - 1 do
       begin
@@ -619,7 +614,8 @@ begin
               FLogManager.Log(
                 'Setting BreakPoint for module: ' + ModuleName +
                 ' unit ' + UnitName +
-                ' addr:' + IntToStr(LineIndex));
+                ' addr: ' + AddressToString(MapLineNumber.VA) +
+                ' (' + AddressToString(AddressFromVA(MapLineNumber.VA, AModule.CodeBegin)) + ')');
 
               BreakPoint := FBreakPointList.BreakPointByAddress[(AddressFromVA(MapLineNumber.VA, AModule.CodeBegin))];
               if not Assigned(BreakPoint) then
@@ -665,9 +661,9 @@ begin
     finally
       SkippedModules.Free;
     end;
+    FLogManager.Undent;
+    FLogManager.Log('Done adding  BreakPoints');
   end;
-
-  FLogManager.Log('Done adding  BreakPoints');
 end;
 
 procedure TDebugger.HandleCreateProcess(const ADebugEvent: DEBUG_EVENT);
@@ -747,7 +743,6 @@ var
   ExceptionRecord: EXCEPTION_RECORD;
   Module: IDebugModule;
   MapScanner: TJCLMapScanner;
-  ContextRecord: TContext;
 begin
   ADebugEventHandlingResult := Cardinal(DBG_EXCEPTION_NOT_HANDLED);
 
@@ -817,37 +812,14 @@ begin
         ];
         if Assigned(BreakPoint) then
         begin
-          for BreakPointDetailIndex := 0 to Pred(BreakPoint.DetailCount) do
-            FLogManager.Log(
-              'Adding coverage:' +
-                BreakPoint.DetailByIndex(BreakPointDetailIndex).UnitName +
-                ' (' + BreakPoint.DetailByIndex(BreakPointDetailIndex).ModuleName + ') ' +
-                IntToStr(BreakPoint.DetailByIndex(BreakPointDetailIndex).Line));
-
+          FLogManager.Log('Adding coverage for ' + BreakPoint.DetailsToString);
           DebugThread := FDebugProcess.GetThreadById(ADebugEvent.dwThreadId);
           if (DebugThread <> nil) then
           begin
             if (BreakPoint.IsActive) then
             begin
-              BreakPoint.IncBreakCount;
-              if BreakPoint.BreakCount < FCoverageConfiguration.LineCountLimit then
-              begin
-                BreakPoint.DeActivate; // Breakpoint will be reset after STEP
-                ContextRecord.ContextFlags := CONTEXT_CONTROL;
-                if GetThreadContext(DebugThread.Handle, ContextRecord) then
-                begin
-                  // Rewind to previous instruction
-                  Dec(ContextRecord.Eip);
-                  // Set TF (Trap Flag so we get debug exception after next instruction
-                  ContextRecord.EFlags := ContextRecord.EFlags or $100;
-                  SetThreadContext(DebugThread.Handle, ContextRecord);
-                end;
+              if Breakpoint.Hit(DebugThread) then
                 FLastBreakPoint := BreakPoint;
-              end
-              else // Breakpoint has exceeded CountLimit, so is not needed again
-              begin
-                BreakPoint.Clear(DebugThread);
-              end;
             end
             else
             begin
@@ -1130,9 +1102,12 @@ begin
     Exit;
   end;
 
-  FBreakPointList.RemoveModuleBreakpoints(DbgModule);
-  FDebugProcess.RemoveModule(DbgModule);
   FLogManager.Log(Format('UnLoading DLL: %s (%s)',[ DbgModule.Name, AddressToString(DbgModule.Base)] ));
+  FLogManager.Indent;
+  FBreakPointList.RemoveModuleBreakpoints(DbgModule);
+  FModuleList.RemoveBreakPointsForModule(DbgModule);
+  FDebugProcess.RemoveModule(DbgModule);
+  FLogManager.Undent;
 end;
 
 procedure TDebugger.HandleOutputDebugString(const ADebugEvent: DEBUG_EVENT);

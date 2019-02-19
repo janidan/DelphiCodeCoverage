@@ -15,6 +15,7 @@ interface
 uses
   Generics.Collections,
   I_BreakPoint,
+  I_DebugModule,
   I_LogManager;
 
 type
@@ -85,6 +86,7 @@ type
     FName: string;
     FFileName: string;
     FClasses: TDictionary<string, TClassInfo>;
+    FBinaryModule: IDebugModule;
     function GetModuleName: string;
     function GetModuleFileName: string;
     function GetClassCount: Integer;
@@ -94,6 +96,7 @@ type
   protected
     function DoGetEnumerator: TEnumerator<TClassInfo>; override;
   public
+    property BinaryModule: IDebugModule read FBinaryModule;
     property ModuleName: string read GetModuleName;
     property ModuleFileName: string read GetModuleFileName;
 
@@ -107,8 +110,9 @@ type
     function CoveredLineCount: Integer;
 
     constructor Create(
-      const AModuleName: string;
-      const AModuleFileName: string);
+     const ABinaryModule: IDebugModule;
+     const AModuleName: string;
+     const AModuleFileName: string);
     destructor Destroy; override;
 
     function ToString: string; override;
@@ -148,6 +152,7 @@ type
     destructor Destroy; override;
 
     function EnsureModuleInfo(
+      const ABinaryModule: IDebugModule;
       const AModuleName: string;
       const AModuleFileName: string): TModuleInfo;
 
@@ -159,6 +164,8 @@ type
       const ALineNo: Integer;
       const ABreakPoint: IBreakPoint;
       const ALogManager: ILogManager);
+
+    procedure RemoveBreakPointsForModule(const ABinaryModule: IDebugModule);
   end;
 
 implementation
@@ -275,13 +282,13 @@ begin
   end;
 end;
 
-function TModuleList.EnsureModuleInfo(
+function TModuleList.EnsureModuleInfo( const ABinaryModule: IDebugModule;
   const AModuleName: string;
   const AModuleFileName: string): TModuleInfo;
 begin
   if not FModules.TryGetValue(AModuleName, Result) then
   begin
-    Result := TModuleInfo.Create(AModuleName, AModuleFileName);
+    Result := TModuleInfo.Create(ABinaryModule, AModuleName, AModuleFileName);
     FModules.Add(AModuleName, Result);
   end;
 end;
@@ -304,7 +311,7 @@ var
   I: Integer;
   ClassProcName: string;
 begin
-  ALogManager.Log('Adding breakpoint for '+ AQualifiedProcName + ' in ' + AModuleFileName);
+  ALogManager.Log('Adding breakpoint for ' + AQualifiedProcName + ' in ' + AModuleFileName);
   List := TStringList.Create;
   try
     ClassProcName := RightStr(AQualifiedProcName, Length(AQualifiedProcName) - (Length(AModuleName) + 1));
@@ -345,7 +352,7 @@ begin
         end;
       end;
 
-      Module := EnsureModuleInfo(AModuleName, AModuleFileName);
+      Module := EnsureModuleInfo(ABreakPoint.Module, AModuleName, AModuleFileName );
       ClsInfo := Module.EnsureClassInfo(AModuleName, ClassName);
       ProcInfo := ClsInfo.EnsureProcedure(ProcedureName);
       ProcInfo.AddBreakPoint(ALineNo, ABreakPoint);
@@ -354,15 +361,33 @@ begin
     List.Free;
   end;
 end;
+
+procedure TModuleList.RemoveBreakPointsForModule(const ABinaryModule: IDebugModule);
+var
+  CurrentModuleInfo: TModuleInfo;
+begin
+  for CurrentModuleInfo in FModules.Values.ToArray do
+  begin
+    if CurrentModuleInfo.BinaryModule = ABinaryModule  then
+    begin
+      FModules.Remove( CurrentModuleInfo.ModuleName );
+      CurrentModuleInfo.Free;
+    end;
+  end;
+end;
+
 {$endregion 'TModuleList'}
 
 {$region 'TModuleInfo'}
+
 constructor TModuleInfo.Create(
+  const ABinaryModule: IDebugModule;
   const AModuleName: string;
   const AModuleFileName: string);
 begin
   inherited Create;
 
+  FBinaryModule := ABinaryModule;
   FName := AModuleName;
   FFileName := AModuleFileName;
   FClasses := TDictionary<string, TClassInfo>.Create;
@@ -603,7 +628,7 @@ begin
   inherited Create;
 
   FName := AName;
-  FLines := TDictionary <Integer, TSimpleBreakPointList>.Create;
+  FLines := TDictionary<Integer, TSimpleBreakPointList>.Create;
 end;
 
 destructor TProcedureInfo.Destroy;

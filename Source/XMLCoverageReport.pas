@@ -205,7 +205,6 @@ procedure TXMLCoverageReport.AddModuleLineHits(
   ALineHitsElement: TJclSimpleXMLElem;
   const ACoverage: ICoverageStats);
 var
-  Line: Integer;
   FileElement: TJclSimpleXMLElem;
   StringBuilder: TStringBuilder;
   CoverageLine: TCoverageLine;
@@ -216,10 +215,9 @@ begin
     FileElement.Properties.Add('name', ACoverage.Name);
     StringBuilder := TStringBuilder.Create;
     try
-      for Line := 0 to ACoverage.GetCoverageLineCount - 1 do
+      for CoverageLine in ACoverage.CoverageLines do
       begin
-        CoverageLine := ACoverage.CoverageLine[Line];
-        StringBuilder.Append(IfThen(Line = 0, '', ';'))
+        StringBuilder.Append(IfThen(StringBuilder.Length = 0, '', ';'))
           .Append(CoverageLine.LineNumber)
           .Append('=')
           .Append(CoverageLine.LineCount);

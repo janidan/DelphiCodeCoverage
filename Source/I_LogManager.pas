@@ -21,6 +21,9 @@ type
     procedure Log(const AMessage : string);
 
     procedure AddLogger(const ALogger : ILogger);
+
+    procedure Indent;
+    procedure Undent;
   end;
 
 function LastErrorInfo: string;

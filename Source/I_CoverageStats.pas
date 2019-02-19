@@ -30,6 +30,7 @@ type
 
     function Parent: ICoverageStats;
     function Count: Integer;
+
     function GetCoverageReportByIndex(const AIndex: Integer): ICoverageStats;
     property CoverageReport[const AIndex: Integer]: ICoverageStats read GetCoverageReportByIndex; default;
 
@@ -40,10 +41,14 @@ type
     function Name: string;
 
     function GetCoverageLineCount: Integer;
-    function GetCoverageLine(const AIndex: Integer): TCoverageLine;
-    property CoverageLine[const AIndex: Integer]: TCoverageLine read GetCoverageLine;
+    /// <summary>Returns a list of lines that have line information. Sorted by line numbers.</summary>
+    function CoverageLines: TArray<TCoverageLine>;
 
     procedure AddLineCoverage(const ALineNumber: Integer; const ALineCount: Integer);
+    /// <summary>Try to get coverage information.
+    /// If the line number is known the out param will return the information and the result is true.
+    /// </summary>
+    function TryGetLineCoverage(const ALineNumber: Integer; out ACoverageLine: TCoverageLine) : Boolean;
   end;
 
 implementation

@@ -498,7 +498,6 @@ procedure THTMLCoverageReport.GenerateCoverageTable(
 var
   LineCoverage     : TCoverageLine;
   InputLine        : string;
-  LineCoverageIter : Integer;
   LineCount        : Integer;
 
   procedure WriteTableRow(const AClass: string; const ACount: Integer = -1);
@@ -525,7 +524,6 @@ var
   end;
 
 begin
-  LineCoverageIter := 0;
   LineCount := 1;
 
   AOutputFile.WriteLine(StartTag('table', SourceClass));
@@ -533,15 +531,13 @@ begin
   begin
     InputLine := AInputFile.ReadLine;
     InputLine := JvStrToHtml.StringToHtml(TrimRight(InputLine));
-    LineCoverage := ACoverageModule.CoverageLine[LineCoverageIter];
-    if (LineCount = LineCoverage.LineNumber) then
+
+    if ACoverageModule.TryGetLineCoverage(LineCount, LineCoverage) then
     begin
       if LineCoverage.IsCovered then
         WriteTableRow('covered', LineCoverage.LineCount)
       else
         WriteTableRow('notcovered');
-
-      Inc(LineCoverageIter);
     end
     else
       WriteTableRow('nocodegen');
