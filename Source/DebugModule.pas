@@ -28,7 +28,7 @@ type
     FCodeBegin: NativeUInt;
     FCodeEnd: NativeUInt;
     FMapScanner: TJCLMapScanner;
-  public
+
     function Name: string;
     function HFile: THandle;
     function Base: NativeUInt;
@@ -36,7 +36,7 @@ type
     function CodeBegin: NativeUInt;
     function CodeEnd: NativeUInt;
     function MapScanner: TJCLMapScanner;
-
+  public
     constructor Create(
       const AName: string;
       const AHFile: THandle;

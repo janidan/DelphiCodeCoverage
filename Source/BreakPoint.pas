@@ -37,13 +37,6 @@ type
 
     function DeActivate: Boolean;
     function Hit(const AThread: IDebugThread): Boolean;
-  public
-    constructor Create(const ADebugProcess: IDebugProcess;
-                       const AAddress: Pointer;
-                       const AModule: IDebugModule;
-                       const ALogManager: ILogManager);
-    procedure BeforeDestruction; override;
-
 
     procedure Clear(const AThread: IDebugThread);
 
@@ -64,7 +57,12 @@ type
     function Module: IDebugModule;
 
     function GetCovered: Boolean;
-    property IsCovered: Boolean read GetCovered;
+  public
+    constructor Create(const ADebugProcess: IDebugProcess;
+                       const AAddress: Pointer;
+                       const AModule: IDebugModule;
+                       const ALogManager: ILogManager);
+    procedure BeforeDestruction; override;
   end;
 
 implementation

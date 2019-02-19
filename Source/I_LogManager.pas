@@ -21,8 +21,9 @@ type
     procedure Log(const AMessage : string);
 
     procedure AddLogger(const ALogger : ILogger);
-
+    /// <summary>Indent the output - for better reading an grouping.</summary>
     procedure Indent;
+    /// <summary>Remove a indentation.</summary>
     procedure Undent;
   end;
 

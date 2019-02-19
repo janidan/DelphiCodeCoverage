@@ -23,19 +23,18 @@ type
   TBreakPointList = class(TInterfacedObject, IBreakPointList)
   strict private
     FBreakPointLst: TDictionary<Pointer,IBreakPoint>;
-  public
+
     function GetBreakPoints:TArray<IBreakPoint>;
 
     function GetBreakPointByAddress(const AAddress: Pointer): IBreakPoint;
-    property BreakPointByAddress[const AAddress: Pointer]: IBreakPoint read GetBreakPointByAddress;
-
-    constructor Create;
-    destructor Destroy; override;
 
     procedure Add(const ABreakPoint: IBreakPoint);
     procedure RemoveModuleBreakpoints(const AModule: IDebugModule);
 
     function Count: Integer;
+  public
+    constructor Create;
+    destructor Destroy; override;
   end;
 
 implementation
