@@ -68,7 +68,5 @@ begin
     on E: Exception do
       WriteLn(E.ClassName, ': ', E.message);
   end;
-
-  readln;
 end.
 
