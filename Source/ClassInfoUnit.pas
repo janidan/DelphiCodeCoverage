@@ -20,7 +20,15 @@ uses
   I_LogManager;
 
 type
-  TSimpleBreakPointList = TList<IBreakPoint>;
+  TSimpleBreakPointList = class(TList<IBreakPoint>)
+  private
+    FLine: Integer;
+  public
+    constructor Create(const aLine: Integer);
+    procedure RemoveBreakPointsForModule(const ABinaryModule: IDebugModule);
+
+    property Line: Integer read FLine;
+  end;
 
   TProcedureInfo = class(TEnumerable<Integer>)
   private
@@ -47,6 +55,9 @@ type
       const ALineNo: Integer;
       const ABreakPoint: IBreakPoint);
     function IsLineCovered(const ALineNo: Integer): Boolean;
+
+    procedure HandleBreakPoint(const ABreakPoint: IBreakPoint);
+    procedure RemoveBreakPointsForModule(const ABinaryModule: IDebugModule);
   end;
 
   TClassInfo = class(TEnumerable<TProcedureInfo>)
@@ -80,6 +91,8 @@ type
       const AClassName: string);
     destructor Destroy; override;
     function EnsureProcedure(const AProcedureName: string): TProcedureInfo;
+    procedure HandleBreakPoint(const ABreakPoint: IBreakPoint);
+    procedure RemoveBreakPointsForModule(const ABinaryModule: IDebugModule);
   end;
 
   TModuleInfo = class(TEnumerable<TClassInfo>)
@@ -122,6 +135,9 @@ type
       const AModuleName: string;
       const AClassName: string): TClassInfo;
     procedure ClearClasses;
+
+    procedure HandleBreakPoint(const ABreakPoint: IBreakPoint);
+    procedure RemoveBreakPointsForModule(const ABinaryModule: IDebugModule);
   end;
 
   TModuleList = class(TEnumerable<TModuleInfo>)
@@ -158,14 +174,7 @@ type
       const AModuleFileName: string): TModuleInfo;
 
 
-    procedure HandleBreakPoint(
-      const AModuleName: string;
-      const AModuleFileName: string;
-      const AQualifiedProcName: string;
-      const ALineNo: Integer;
-      const ABreakPoint: IBreakPoint;
-      const ALogManager: ILogManager);
-
+    procedure HandleBreakPoint(const ABreakPoint: IBreakPoint; const ALogManager: ILogManager);
     procedure RemoveBreakPointsForModule(const ABinaryModule: IDebugModule);
   end;
 
@@ -180,6 +189,7 @@ uses
   StrUtilsD9,
   {$IFEND}
   Classes,
+  I_CoverageConfiguration,
   uConsoleOutput;
 
 {$region 'TModuleList'}
@@ -295,72 +305,21 @@ begin
 end;
 
 procedure TModuleList.HandleBreakPoint(
-  const AModuleName: string;
-  const AModuleFileName: string;
-  const AQualifiedProcName: string;
-  const ALineNo: Integer;
   const ABreakPoint: IBreakPoint;
   const ALogManager: ILogManager);
 var
-  List: TStrings;
-  ClassName: string;
-  ProcedureName: string;
+  BreakpointDetails: TBreakPointDetail;
   ClsInfo: TClassInfo;
   ProcInfo: TProcedureInfo;
   Module: TModuleInfo;
-  ProcedureNameParts: TStringDynArray;
-  I: Integer;
-  ClassProcName: string;
 begin
-  ALogManager.Log('Adding breakpoint for ' + AQualifiedProcName + ' in ' + AModuleFileName);
-  List := TStringList.Create;
-  try
-    ClassProcName := RightStr(AQualifiedProcName, Length(AQualifiedProcName) - (Length(AModuleName) + 1));
-    // detect module initialization section
-    if ClassProcName = AModuleName then
-    begin
-      ClassProcName := 'Initialization';
-    end;
+  BreakpointDetails := ABreakPoint.Details;
 
-    if EndsStr(TProcedureInfo.BodySuffix, ClassProcName) then
-    begin
-      ClassProcName := LeftStr(ClassProcName, Length(ClassProcName) - Length(TProcedureInfo.BodySuffix));
-    end;
-
-    ExtractStrings(['.'], [], PWideChar(ClassProcName), List);
-    if List.Count > 0 then
-    begin
-      ProcedureNameParts := SplitString(List[List.Count - 1], '$');
-      ProcedureName := ProcedureNameParts[0];
-
-      if List.Count > 2 then
-      begin
-        ClassName := '';
-        for I := 0 to List.Count - 2 do
-        begin
-          ClassName := IfThen(ClassName = '', '', ClassName + '.') + List[I];
-        end;
-      end
-      else
-      begin
-        if SameText(List[0], 'finalization') or SameText(List[0], 'initialization') then
-        begin
-          ClassName := StringReplace(AModuleName, '.', '_', [rfReplaceAll]);
-        end
-        else
-        begin
-          ClassName := List[0];
-        end;
-      end;
-
-      Module := EnsureModuleInfo(ABreakPoint.Module, AModuleName, AModuleFileName );
-      ClsInfo := Module.EnsureClassInfo(AModuleName, ClassName);
-      ProcInfo := ClsInfo.EnsureProcedure(ProcedureName);
-      ProcInfo.AddBreakPoint(ALineNo, ABreakPoint);
-    end;
-  finally
-    List.Free;
-  end;
+  ALogManager.Log('Adding breakpoint for ' + BreakpointDetails.FullyQualifiedMethodName + ' in ' + ABreakPoint.Module.Name);
+  ALogManager.Indent;
+  Module := EnsureModuleInfo(ABreakPoint.Module, BreakpointDetails.DefiningModule, BreakpointDetails.UnitName );
+  Module.HandleBreakPoint(ABreakPoint);
+  ALogManager.Undent;
 end;
 
 procedure TModuleList.RemoveBreakPointsForModule(const ABinaryModule: IDebugModule);
@@ -369,7 +328,10 @@ var
 begin
   for CurrentModuleInfo in FModules.Values.ToArray do
   begin
-    if CurrentModuleInfo.BinaryModule = ABinaryModule  then
+    G_LogManager.Indent;
+    CurrentModuleInfo.RemoveBreakPointsForModule(ABinaryModule);
+    G_LogManager.Undent;
+    if (CurrentModuleInfo.ClassCount = 0) then
     begin
       FModules.Remove( CurrentModuleInfo.ModuleName );
       CurrentModuleInfo.Free;
@@ -392,12 +354,16 @@ begin
   FName := AModuleName;
   FFileName := AModuleFileName;
   FClasses := TDictionary<string, TClassInfo>.Create;
+  G_LogManager.LogFmt('Adding ModuleInfo for %s, %s in %s ',[ABinaryModule.Name, AModuleName, AModuleFileName]);
 end;
 
 destructor TModuleInfo.Destroy;
 begin
+  G_LogManager.LogFmt('Destroying ModuleInfo for %s, %s in %s ',[FBinaryModule.Name, FName, FFileName]);
+  G_LogManager.Indent;
   ClearClasses;
   FClasses.Free;
+  G_LogManager.Undent;
 
   inherited Destroy;
 end;
@@ -422,6 +388,21 @@ begin
   Result := FName;
 end;
 
+procedure TModuleInfo.HandleBreakPoint(const ABreakPoint: IBreakPoint);
+var
+  BreakpointDetails: TBreakPointDetail;
+  ClsInfo: TClassInfo;
+  ProcInfo: TProcedureInfo;
+  Module: TModuleInfo;
+begin
+  BreakpointDetails := ABreakPoint.Details;
+  G_LogManager.LogFmt('Adding breakpoint to module %s ', [BreakpointDetails.ModuleName]);
+  G_LogManager.Indent;
+  ClsInfo := EnsureClassInfo(BreakpointDetails.ModuleName, BreakpointDetails.ClassName);
+  ClsInfo.HandleBreakPoint(ABreakPoint);
+  G_LogManager.Undent;
+end;
+
 function TModuleInfo.GetModuleFileName: string;
 begin
   Result := FFileName;
@@ -433,7 +414,6 @@ function TModuleInfo.EnsureClassInfo(
 begin
   if not FClasses.TryGetValue(AClassName, Result) then
   begin
-    VerboseOutput('Creating class info for ' + AModuleName + ' class ' + AClassName);
     Result := TClassInfo.Create(AModuleName, AClassName);
     FClasses.Add(AClassName, Result);
   end;
@@ -493,6 +473,23 @@ begin
   end;
 end;
 
+procedure TModuleInfo.RemoveBreakPointsForModule(const ABinaryModule: IDebugModule);
+var
+  CurrentClassInfo: TClassInfo;
+begin
+  for CurrentClassInfo in FClasses.Values.ToArray do
+  begin
+    G_LogManager.Indent;
+    CurrentClassInfo.RemoveBreakPointsForModule(ABinaryModule);
+    G_LogManager.Undent;
+    if (CurrentClassInfo.ProcedureCount = 0) then
+    begin
+      FClasses.Remove( CurrentClassInfo.TheClassName );
+      CurrentClassInfo.Free;
+    end;
+  end;
+end;
+
 function TModuleInfo.CoveredLineCount: Integer;
 var
   CurrentClassInfo: TClassInfo;
@@ -513,12 +510,16 @@ begin
   FModule := AModuleName;
   FName := AClassName;
   FProcedures := TDictionary<string, TProcedureInfo>.Create;
+  G_LogManager.LogFmt('Creating ClassInfo for %s in %s ',[FName, FModule]);
 end;
 
 destructor TClassInfo.Destroy;
 begin
+  G_LogManager.LogFmt('Destroying ClassInfo for %s in %s ',[FName, FModule]);
+  G_LogManager.Indent;
   ClearProcedures;
   FProcedures.Free;
+  G_LogManager.Undent;
 
   inherited Destroy;
 end;
@@ -565,6 +566,23 @@ begin
   Result := Covered * 100 div Total;
 end;
 
+procedure TClassInfo.RemoveBreakPointsForModule(const ABinaryModule: IDebugModule);
+var
+  CurrentInfo: TProcedureInfo;
+begin
+  for CurrentInfo in FProcedures.Values.ToArray do
+  begin
+    G_LogManager.Indent;
+    CurrentInfo.RemoveBreakPointsForModule(ABinaryModule);
+    G_LogManager.Undent;
+    if (CurrentInfo.LineCount = 0) then
+    begin
+      FProcedures.Remove( CurrentInfo.Name );
+      CurrentInfo.Free;
+    end;
+  end;
+end;
+
 function TClassInfo.GetModule: string;
 begin
   Result := FModule;
@@ -578,6 +596,21 @@ end;
 function TClassInfo.GetProcedureCount: Integer;
 begin
   Result := FProcedures.Count;
+end;
+
+procedure TClassInfo.HandleBreakPoint(const ABreakPoint: IBreakPoint);
+var
+  BreakpointDetails: TBreakPointDetail;
+  ClsInfo: TClassInfo;
+  ProcInfo: TProcedureInfo;
+  Module: TModuleInfo;
+begin
+  BreakpointDetails := ABreakPoint.Details;
+  G_LogManager.LogFmt('Adding breakpoint to class %s ', [BreakpointDetails.ClassName]);
+  G_LogManager.Indent;
+  ProcInfo := EnsureProcedure(BreakpointDetails.MethodName);
+  ProcInfo.HandleBreakPoint(ABreakPoint);
+  G_LogManager.Undent;
 end;
 
 function TClassInfo.GetCoveredProcedureCount: Integer;
@@ -630,13 +663,16 @@ begin
 
   FName := AName;
   FLines := TDictionary<Integer, TSimpleBreakPointList>.Create;
+  G_LogManager.LogFmt('Creating ProcedureInfo for %s',[FName]);
 end;
 
 destructor TProcedureInfo.Destroy;
 begin
+  G_LogManager.LogFmt('Destroying ProcedureInfo for %s',[FName]);
+  G_LogManager.Indent;
   ClearLines;
   FLines.Free;
-
+  G_LogManager.Undent;
   inherited Destroy;
 end;
 
@@ -663,10 +699,10 @@ var
 begin
   if not (FLines.TryGetValue(ALineNo, BreakPointList)) then
   begin
-    BreakPointList := TSimpleBreakPointList.Create;
+    BreakPointList := TSimpleBreakPointList.Create(ALineNo);
     FLines.Add(ALineNo, BreakPointList);
   end;
-
+  G_LogManager.Log('Adding Breakpoint to ProcedureInfo: ' + ABreakPoint.DetailsToString);
   BreakPointList.Add(ABreakPoint);
 end;
 
@@ -721,10 +757,52 @@ begin
   Result := (100 * CoveredLineCount) div LineCount;
 end;
 
+procedure TProcedureInfo.RemoveBreakPointsForModule(const ABinaryModule: IDebugModule);
+var
+  BreakPointList: TSimpleBreakPointList;
+begin
+  for BreakPointList in FLines.Values.ToArray do
+  begin
+    G_LogManager.Indent;
+    BreakPointList.RemoveBreakPointsForModule(ABinaryModule);
+    G_LogManager.Undent;
+    if (BreakPointList.Count = 0) then
+    begin
+      FLines.Remove(BreakPointList.Line);
+      BreakPointList.Free;
+    end;
+  end;
+end;
+
 function TProcedureInfo.GetName: string;
 begin
   Result := FName;
 end;
+procedure TProcedureInfo.HandleBreakPoint(const ABreakPoint: IBreakPoint);
+begin
+  G_LogManager.Indent;
+  AddBreakPoint(ABreakPoint.Details.Line, ABreakPoint);
+  G_LogManager.Undent;
+end;
+
 {$endregion 'TProcedureInfo'}
+
+{ TSimpleBreakPointList }
+
+constructor TSimpleBreakPointList.Create(const aLine: Integer);
+begin
+  inherited Create;
+  FLine := aLine;
+end;
+
+procedure TSimpleBreakPointList.RemoveBreakPointsForModule(const ABinaryModule: IDebugModule);
+var
+  BreakPoint: IBreakPoint;
+begin
+  for BreakPoint in ToArray do
+    if (BreakPoint.Module = ABinaryModule) then
+      Remove( BreakPoint );
+end;
+
 
 end.

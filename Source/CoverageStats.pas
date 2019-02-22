@@ -31,9 +31,6 @@ type
     FCoverageLines: TDictionary<Integer, TCoverageLine>;
     FCoverageStatsList: TDictionary<string, ICoverageStats>;
     procedure UpdatePercentCovered;
-  public
-    constructor Create(const AName: string; const AParent: ICoverageStats);
-    destructor Destroy; override;
 
     procedure Calculate;
 
@@ -43,9 +40,10 @@ type
 
     function Count: Integer;
     function GetCoverageReportByIndex(const AIndex: Integer): ICoverageStats;
-    property CoverageReport[const AIndex: Integer]: ICoverageStats read GetCoverageReportByIndex; default;
     function GetCoverageReportByName(const AName: string) : ICoverageStats;
-    property CoverageReportByName[const AName: string]: ICoverageStats read GetCoverageReportByName;
+
+    function GetCoverageReport(const AName: string) : ICoverageStats;
+    function GetCoverageReports : TArray<ICoverageStats>;
 
     function Name: string;
     function ReportFileName: string;
@@ -56,6 +54,9 @@ type
 
     procedure AddLineCoverage(const ALineNumber: Integer; const ALineCount: Integer);
     function TryGetLineCoverage(const ALineNumber: Integer; out ACoverageLine: TCoverageLine) : Boolean;
+  public
+    constructor Create(const AName: string; const AParent: ICoverageStats);
+    destructor Destroy; override;
   end;
 
 implementation
@@ -149,6 +150,25 @@ end;
 function TCoverageStats.GetCoverageReportByName(const AName: string): ICoverageStats;
 begin
   FCoverageStatsList.TryGetValue(AName, Result);
+  if not FCoverageStatsList.TryGetValue(AName, Result) then
+  begin
+    Result := TCoverageStats.Create(AName, Self);
+    FCoverageStatsList.Add(AName, Result);
+  end;
+end;
+
+function TCoverageStats.GetCoverageReports: TArray<ICoverageStats>;
+begin
+  Result := FCoverageStatsList.Values.ToArray;
+  TArray.Sort<ICoverageStats>(Result, TComparer<ICoverageStats>.Construct(
+                            function(const Left, Right: ICoverageStats): Integer
+                            begin
+                              Result := CompareStr(Left.Name,Right.Name);
+                            end));
+end;
+
+function TCoverageStats.GetCoverageReport(const AName: string): ICoverageStats;
+begin
   if not FCoverageStatsList.TryGetValue(AName, Result) then
   begin
     Result := TCoverageStats.Create(AName, Self);

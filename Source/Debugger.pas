@@ -40,7 +40,6 @@ type
     FProcessID: DWORD;
     FBreakPointList: IBreakPointList;
     FCoverageConfiguration: ICoverageConfiguration;
-    FCoverageStats: ICoverageStats;
     FLogManager: ILogManager;
     FModuleList: TModuleList;
     FTestExeExitCode: Integer;
@@ -76,10 +75,10 @@ type
 
     procedure LogStackFrame(const ADebugEvent: DEBUG_EVENT);
 
-    procedure GenerateReport;
+    function GenerateReport: ICoverageStats;
 
     procedure PrintUsage;
-    procedure PrintSummary;
+    procedure PrintSummary(const aCoverageStats :ICoverageStats);
   public
     constructor Create;
     destructor Destroy; override;
@@ -152,8 +151,6 @@ begin
   FCoverageConfiguration := TCoverageConfiguration.Create(TCommandLineProvider.Create);
   G_CoverageConfiguration := FCoverageConfiguration;
 
-  FCoverageStats := TCoverageStats.Create('', nil);
-
   FLogManager := TLogManager.Create;
   uConsoleOutput.G_LogManager := FLogManager;
 
@@ -166,10 +163,9 @@ begin
   G_CoverageConfiguration := nil;
   FDebugProcess := nil;
   FBreakPointList := nil;
-  FCoverageStats := nil;
-  uConsoleOutput.G_LogManager := nil;
   FLogManager := nil;
   FModuleList.Free;
+  uConsoleOutput.G_LogManager := nil;
   CoUninitialize;
 
   inherited;
@@ -253,6 +249,8 @@ begin
       ' name dll [dll2]   -- Create a separate namespace with the given name for the listed dll:s.');
   ConsoleOutput(I_CoverageConfiguration.cPARAMETER_UNIT_NAMESPACE +
       ' dll_or_exe unitname [unitname2]   -- Create a separate namespace (the namespace name will be the name of the module without extension) *ONLY* for the listed units within the module.');
+  ConsoleOutput(I_CoverageConfiguration.cPARAMETER_DEFINING_NAMESPACE +
+      '               -- Use defining module for coverage. This will add coverage in the defining pas file instead of a copy when using generics.');
   ConsoleOutput(I_CoverageConfiguration.cPARAMETER_LINE_COUNT +
     ' [number] -- Count number of times a line is executed up to the specified limit (default 0 - disabled) (Win32 only)');
 
@@ -294,7 +292,7 @@ begin
   end;
 end;
 
-procedure TDebugger.GenerateReport;
+function TDebugger.GenerateReport: ICoverageStats;
 var
   ModuleStats: ICoverageStats;
   UnitStats: ICoverageStats;
@@ -303,49 +301,40 @@ var
   CoverageReport: IReport; // TCoverageReport;
 begin
   FLogManager.Log('ProcedureReport');
+
+  Result := TCoverageStats.Create('', nil);
+
   ModuleStats := nil;
   UnitStats := nil;
 
   for BreakPoint in FBreakPointList.GetBreakPoints do
   begin
     BreakPointDetail := BreakPoint.Details;
-
-    if (ModuleStats = nil)
-    or (ModuleStats.Name <> BreakPointDetail.ModuleName) then
-    begin
-      UnitStats := nil;
-      ModuleStats := FCoverageStats.CoverageReportByName[BreakPointDetail.ModuleName];
-    end;
-
-    if (UnitStats = nil)
-    or (UnitStats.Name <> BreakPointDetail.UnitName) then
-    begin
-      UnitStats := ModuleStats.CoverageReportByName[BreakPointDetail.UnitName];
-    end;
-
+    ModuleStats := Result.GetCoverageReport(BreakPointDetail.DefiningModule);
+    UnitStats := ModuleStats.GetCoverageReport(BreakPointDetail.UnitName);
     UnitStats.AddLineCoverage(BreakPointDetail.Line, BreakPoint.BreakCount);
   end;
 
-  FCoverageStats.Calculate;
+  Result.Calculate;
 
   FLogManager.Log('Generating reports');
 
   if (FCoverageConfiguration.HtmlOutput) then
   begin
     CoverageReport := THTMLCoverageReport.Create(FCoverageConfiguration);
-    CoverageReport.Generate(FCoverageStats, FModuleList, FLogManager);
+    CoverageReport.Generate(Result, FModuleList, FLogManager);
   end;
 
   if (FCoverageConfiguration.XmlOutput) then
   begin
     CoverageReport := TXMLCoverageReport.Create(FCoverageConfiguration);
-    CoverageReport.Generate(FCoverageStats, FModuleList,FLogManager);
+    CoverageReport.Generate(Result, FModuleList,FLogManager);
   end;
 
   if (FCoverageConfiguration.EmmaOutput) or (FCoverageConfiguration.EmmaOutput21) then
   begin
     CoverageReport := TEmmaCoverageFile.Create(FCoverageConfiguration);
-    CoverageReport.Generate(FCoverageStats, FModuleList,FLogManager);
+    CoverageReport.Generate(Result, FModuleList,FLogManager);
   end;
 end;
 
@@ -386,7 +375,7 @@ begin
   FProcessID := ProcInfo.dwProcessId;
 end;
 
-procedure TDebugger.PrintSummary;
+procedure TDebugger.PrintSummary(const aCoverageStats :ICoverageStats);
   function PadString(const AString: string): string;
   begin
     Result := AString + ' ';
@@ -404,9 +393,9 @@ begin
     Format(
       '|%s|%s|%s|',
       [
-        PadString(IntToStr(FCoverageStats.LineCount)),
-        PadString(IntToStr(FCoverageStats.CoveredLineCount)),
-        PadString(IntToStr(FCoverageStats.PercentCovered) + ' %')
+        PadString(IntToStr(aCoverageStats.LineCount)),
+        PadString(IntToStr(aCoverageStats.CoveredLineCount)),
+        PadString(IntToStr(aCoverageStats.PercentCovered) + ' %')
       ]
     )
   );
@@ -414,6 +403,8 @@ begin
 end;
 
 procedure TDebugger.Debug;
+var
+  CoverageStats: ICoverageStats;
 begin
   try
     FMapScanner := TJCLMapScanner.Create(FCoverageConfiguration.MapFileName);
@@ -425,9 +416,9 @@ begin
           VerboseOutput('Started successfully');
           ProcessDebugEvents;
           VerboseOutput('Finished processing debug events');
-          GenerateReport;
+          CoverageStats := GenerateReport;
           VerboseOutput('Finished generating reports');
-          PrintSummary;
+          PrintSummary(CoverageStats);
         end
         else
         begin
@@ -583,7 +574,7 @@ begin
       begin
         MapLineNumber := AMapScanner.LineNumberByIndex[LineIndex];
 
-        // RINGN:Segment 2 are .itext (ICODE).
+        // RINGN:Segment 2 are .itext (ICODE). and 1 = Code
         if (MapLineNumber.Segment in [1, 2]) then
         begin
           ModuleName := AMapScanner.MapStringToStr(MapLineNumber.UnitName);
@@ -600,13 +591,16 @@ begin
               UnitNameSpace := '';
           end;
 
+          UnitName := AMapScanner.SourceNameFromAddr(MapLineNumber.VA);
+          if ExtractFileExt(UnitName) = '' then
+            UnitName := ChangeFileExt(UnitName, '.pas');
+          UnitModuleName := ChangeFileExt(UnitName, '');
+
+          if (SkippedModules.IndexOf(UnitModuleName) > -1) then
+            Continue;
+
           if (ModuleName = ModuleNameFromAddr) then
           begin
-            UnitName := AMapScanner.SourceNameFromAddr(MapLineNumber.VA);
-            if ExtractFileExt(UnitName) = '' then
-              UnitName := ChangeFileExt(UnitName, '.pas');
-            UnitModuleName := ChangeFileExt(UnitName, '');
-
             if (AModuleList.IndexOf(UnitModuleName) > -1)
             and (AModuleList.IndexOf(ModuleName) > -1)
             and (AExcludedModuleList.IndexOf(UnitModuleName) < 0) then
@@ -624,25 +618,16 @@ begin
                   FDebugProcess,
                   AddressFromVA(MapLineNumber.VA, AModule.CodeBegin),
                   AModule,
+                  AMapScanner.ProcNameFromAddr(MapLineNumber.VA),
+				          Prefix + UnitNameSpace + ModuleName,
+                  ModuleName,
+                  UnitName,
+                  MapLineNumber.LineNumber,
                   FLogManager
                 );
                 FBreakPointList.Add(BreakPoint);
-                FModuleList.HandleBreakPoint(
-                  Prefix + UnitNameSpace + ModuleName,
-                  UnitName,
-                  AMapScanner.ProcNameFromAddr(MapLineNumber.VA),
-                  MapLineNumber.LineNumber,
-                  BreakPoint,
-                  FLogManager
-                );
+                FModuleList.HandleBreakPoint(BreakPoint, FLogManager);
               end;
-
-              BreakPoint.AddDetails(
-                Prefix + UnitNameSpace + ModuleName,
-                UnitName,
-                MapLineNumber.LineNumber
-              );
-
               if (not BreakPoint.Activate) then
                 FLogManager.Log('BP FAILED to activate successfully');
             end

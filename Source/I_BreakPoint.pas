@@ -19,12 +19,23 @@ uses
 type
   /// <summary>Source information of a breakpoint</summary>
   TBreakPointDetail = record
-    /// <summary>The name of the module. This is the name of the unit (without .pas)</summary>
-    ModuleName : string;
-    /// <summary>This is the name of the unit (including .pas)</summary>
-    UnitName   : string;
-    /// <summary>The line of source code this breakpoint covers.</summary>
-    Line       : Integer;
+    /// <summary>The fully qualifified name of the method, as defined in the MAP file.
+    /// This typically consists of ModuleName.ClassName.Methodname</summary>
+    FullyQualifiedMethodName: string;
+    /// <summary>The mapped / scoped name for documentation.</summary>
+    MappedModuleName: string;
+    /// <summary>The name of the module. This is the name of the unit (without .pas) where the binary code resides</summary>
+    ModuleName: string;
+    /// <summary>This is the name of the module where code is defined. UnitName w/o pas</summary>
+    DefiningModule: string;
+    /// <summary>This is the name of the unit (including .pas) where the class/method is defined.</summary>
+    UnitName: string;
+    /// <summary>This is the name of class that contains the procedure</summary>
+    ClassName: string;
+    /// <summary>The name of the method where this breakpoint is defined</summary>
+    MethodName: string;
+    /// <summary>The line of source code this breakpoint covers in the unit name.</summary>
+    Line: Integer;
   end;
 
 type
@@ -50,10 +61,10 @@ type
     /// <summary>Module to which this breakpoint belongs.</summary>
     function Module: IDebugModule;
     /// <summary>Add the Source details for the coverage.</summary>
-    procedure AddDetails(
-      const AModuleName: string;
-      const AUnitName: string;
-      const ALineNumber: Integer);
+//    procedure AddDetails(
+//      const AModuleName: string;
+//      const AUnitName: string;
+//      const ALineNumber: Integer);
     /// <summary>Get the source details for the given breakpoint.</summary>
     function Details: TBreakPointDetail;
     /// <summary>Convienience method that gives a nice string representation for logging.</summary>

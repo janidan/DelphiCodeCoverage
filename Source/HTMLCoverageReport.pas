@@ -157,7 +157,7 @@ var
 begin
   if (ACoverageModule.Count = 1) then
   begin
-    Result          := GenerateUnitReport(ACoverageModule.CoverageReport[0]);
+    Result          := GenerateUnitReport(ACoverageModule.GetCoverageReports[0]);
     Result.LinkName := ACoverageModule.Name;
     Exit;
   end;
@@ -278,10 +278,8 @@ var
   PreLink: string;
   CurrentStats: ICoverageStats;
 begin
-  for StatIndex := 0 to Pred(ACoverageStats.Count) do
+  for CurrentStats in ACoverageStats.GetCoverageReports do
   begin
-    CurrentStats := ACoverageStats.CoverageReport[StatIndex];
-
     HtmlDetails.HasFile := False;
     if Assigned(ACoverageStatsProc) then
       HtmlDetails := ACoverageStatsProc(CurrentStats);

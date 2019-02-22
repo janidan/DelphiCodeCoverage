@@ -33,6 +33,7 @@ requires
   vcl;
 
 contains
-  BplUnit in 'BplUnit.pas';
+  BplUnit in 'BplUnit.pas',
+  BplUnit.Second in 'BplUnit.Second.pas';
 
 end.

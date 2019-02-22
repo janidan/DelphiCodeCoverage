@@ -52,6 +52,7 @@ type
     FUnitNameSpaces: TUnitNameSpaceList;
     FLineCountLimit: Integer;
     FLogManager: ILogManager;
+    FUseDefiningModuleForCoverage: Boolean;
 
     procedure ReadSourcePathFile(const ASourceFileName: string);
     function ParseParameter(const AParameter: Integer): string;
@@ -91,6 +92,8 @@ type
     procedure ParseExcludeSourceMaskSwitch(var AParameter: Integer);
     procedure ParseModuleNameSpaceSwitch(var AParameter: Integer);
     procedure ParseUnitNameSpaceSwitch(var AParameter: Integer);
+    procedure ParseDefiningModuleSwitch(var AParameter: Integer);
+    function UseDefiningModuleForCoverage: Boolean;
     procedure ParseLineCountSwitch(var AParameter: Integer);
   public
     constructor Create(const AParameterProvider: IParameterProvider);
@@ -123,9 +126,6 @@ type
   end;
 
   EConfigurationException = class(Exception);
-
-var
-  G_CoverageConfiguration : ICoverageConfiguration;
 
 implementation
 
@@ -332,6 +332,11 @@ end;
 function TCoverageConfiguration.UseApiDebug: Boolean;
 begin
   Result := FApiLogging;
+end;
+
+function TCoverageConfiguration.UseDefiningModuleForCoverage: Boolean;
+begin
+  Result := FUseDefiningModuleForCoverage;
 end;
 
 function TCoverageConfiguration.EmmaOutput: Boolean;
@@ -640,6 +645,8 @@ begin
     ParseModuleNameSpaceSwitch(AParameter)
   else if SwitchItem = I_CoverageConfiguration.cPARAMETER_UNIT_NAMESPACE then
     ParseUnitNameSpaceSwitch(AParameter)
+  else if SwitchItem = I_CoverageConfiguration.cPARAMETER_DEFINING_NAMESPACE then
+    ParseDefiningModuleSwitch(AParameter)
   else
     raise EConfigurationException.Create('Unexpected switch:' + SwitchItem);
 end;
@@ -653,6 +660,11 @@ begin
   // Now if we haven't yet set the mapfile, we set it by default to be the executable name +.map
   if FMapFileName = '' then
     FMapFileName := ChangeFileExt(FExeFileName, '.map');
+end;
+
+procedure TCoverageConfiguration.ParseDefiningModuleSwitch(var AParameter: Integer);
+begin
+  FUseDefiningModuleForCoverage := True;
 end;
 
 procedure TCoverageConfiguration.ParseMapFileSwitch(var AParameter: Integer);

@@ -61,6 +61,11 @@ type
     constructor Create(const ADebugProcess: IDebugProcess;
                        const AAddress: Pointer;
                        const AModule: IDebugModule;
+                       const AFQName: string;
+                       const AMappedModuleName: string;
+                       const AModuleName: string;
+                       const AUnitName: string;
+                       const ALineNumber: Integer;
                        const ALogManager: ILogManager);
     procedure BeforeDestruction; override;
   end;
@@ -70,12 +75,17 @@ implementation
 uses
   SysUtils,
   Windows,
-  CoverageConfiguration,
+  I_CoverageConfiguration,
   DebuggerUtils;
 
 constructor TBreakPoint.Create(const ADebugProcess: IDebugProcess;
                                const AAddress: Pointer;
                                const AModule: IDebugModule;
+                               const AFQName: string;
+                               const AMappedModuleName: string;
+                               const AModuleName: string;
+                               const AUnitName: string;
+                               const ALineNumber: Integer;
                                const ALogManager: ILogManager);
 begin
   inherited Create;
@@ -85,6 +95,13 @@ begin
   FActive := False;
   FBreakCount := 0;
   FModule := AModule;
+
+  FDetails.FullyQualifiedMethodName := AFQName;
+  FDetails.MappedModuleName := AMappedModuleName;
+  FDetails.ModuleName := AModuleName;
+  FDetails.UnitName := AUnitName;
+  FDetails.Line := ALineNumber;
+  FDetails.ParseFullyQualifiedName;
 
   FLogManager := ALogManager;
 end;
@@ -137,8 +154,10 @@ end;
 
 function TBreakPoint.DetailsToString: string;
 begin
-  Result := Format('Breakpoint at %s: %s[%d]',[
-            AddressToString(FAddress), FDetails.ModuleName, FDetails.Line ]);
+  Result := Format('Breakpoint at %s: %s.%s.%s[%d]',[
+            AddressToString(FAddress),
+            FDetails.ModuleName,FDetails.ClassName,FDetails.MethodName,
+            FDetails.Line ]);
 end;
 
 procedure TBreakPoint.AddDetails(const AModuleName: string;

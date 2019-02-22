@@ -19,6 +19,7 @@ uses
 type
   ILogManager = interface
     procedure Log(const AMessage : string);
+    procedure LogFmt(const AMessage : string; const Args: array of const);
 
     procedure AddLogger(const ALogger : ILogger);
     /// <summary>Indent the output - for better reading an grouping.</summary>

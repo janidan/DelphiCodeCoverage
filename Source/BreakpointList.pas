@@ -78,10 +78,11 @@ end;
 
 procedure TBreakPointList.RemoveModuleBreakpoints(const AModule: IDebugModule);
 var
-  vAddress: NativeUInt;
+  BreakPoint: IBreakPoint;
 begin
-  for vAddress := aModule.CodeBegin to AModule.CodeEnd do
-    FBreakPointLst.Remove(Pointer(vAddress));
+  for BreakPoint in GetBreakPoints do
+    if (AModule = BreakPoint.Module) then
+      FBreakPointLst.Remove(BreakPoint.Address);
 end;
 
 end.

@@ -35,8 +35,11 @@ type
     function GetCoverageReportByIndex(const AIndex: Integer): ICoverageStats;
     property CoverageReport[const AIndex: Integer]: ICoverageStats read GetCoverageReportByIndex; default;
 
-    function GetCoverageReportByName(const AName: string) : ICoverageStats;
-    property CoverageReportByName[const AName: string]: ICoverageStats read GetCoverageReportByName;
+    /// <summary>Returns or creates a coverage stat.</summary>
+    function GetCoverageReport(const AName: string) : ICoverageStats;
+    /// <summary>Returns a list of coverage reports. Sorted by name.</summary>
+    function GetCoverageReports : TArray<ICoverageStats>;
+
 
     function ReportFileName: string;
     function Name: string;

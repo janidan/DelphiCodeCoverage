@@ -28,6 +28,7 @@ type
     destructor Destroy; override;
 
     procedure Log(const AMessage : string);
+    procedure LogFmt(const AMessage : string; const Args: array of const);
 
     procedure AddLogger(const ALogger : ILogger);
 
@@ -37,6 +38,8 @@ type
 
 implementation
 
+uses
+  System.SysUtils;
 
 { TLoggerManager }
 
@@ -68,6 +71,11 @@ var
 begin
   for Logger in FLoggers do
     Logger.Log(StringOfChar(' ', FLevel) + AMessage);
+end;
+
+procedure TLogManager.LogFmt(const AMessage: string; const Args: array of const);
+begin
+  Self.Log(Format(AMessage, Args));
 end;
 
 procedure TLogManager.Undent;
