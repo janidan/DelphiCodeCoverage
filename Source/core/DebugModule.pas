@@ -54,7 +54,8 @@ uses
   Winapi.Windows,
   JclPEImage,
   UConsoleOutput,
-  DebuggerUtils;
+  DebuggerUtils,
+  LogManager;
 
 function TDebugModule.CodeBegin: NativeUInt;
 begin

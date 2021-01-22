@@ -152,8 +152,6 @@ begin
   G_CoverageConfiguration := FCoverageConfiguration;
 
   FLogManager := TLogManager.Create;
-  uConsoleOutput.G_LogManager := FLogManager;
-
   FModuleList := TModuleList.Create;
 end;
 
@@ -165,7 +163,6 @@ begin
   FBreakPointList := nil;
   FLogManager := nil;
   FModuleList.Free;
-  uConsoleOutput.G_LogManager := nil;
   CoUninitialize;
 
   inherited;

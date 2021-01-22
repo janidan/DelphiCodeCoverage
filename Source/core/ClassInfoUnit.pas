@@ -190,7 +190,8 @@ uses
   {$IFEND}
   Classes,
   I_CoverageConfiguration,
-  uConsoleOutput;
+  uConsoleOutput,
+  LogManager;
 
 {$region 'TModuleList'}
 constructor TModuleList.Create;

@@ -20,16 +20,15 @@ procedure VerboseOutput(const AMessage: string);
 
 var
   G_Verbose_Output: Boolean;
-  G_LogManager: ILogManager;
 
 implementation
 
+uses
+  LogManager;
+
 procedure Log(const AMessage: string);
 begin
-  if Assigned(G_LogManager) then
-  begin
-    G_LogManager.Log(AMessage);
-  end;
+  G_LogManager.Log(AMessage);
 end;
 
 procedure ConsoleOutput(const AMessage: string);
@@ -57,5 +56,5 @@ end;
 
 initialization
   G_Verbose_Output := False;
-  G_LogManager := nil;
+
 end.

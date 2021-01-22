@@ -36,10 +36,22 @@ type
     procedure Undent;
   end;
 
+function G_LogManager: ILogManager;
+
 implementation
 
 uses
   System.SysUtils;
+
+var
+  LocalG_LogManager: ILogManager;
+
+function G_LogManager: ILogManager;
+begin
+  if not Assigned( LocalG_LogManager) then
+    LocalG_LogManager := TLogManager.Create;
+  Result := LocalG_LogManager;
+end;
 
 { TLoggerManager }
 
