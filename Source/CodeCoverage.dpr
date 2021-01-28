@@ -50,7 +50,9 @@ uses
   CoverageConfiguration in 'core\CoverageConfiguration.pas',
   BreakPoint in 'core\BreakPoint.pas',
   BreakpointList in 'core\BreakpointList.pas',
-  ClassInfoUnit in 'core\ClassInfoUnit.pas';
+  ClassInfoUnit in 'core\ClassInfoUnit.pas',
+  JaCoCoXmlDataBinding in 'reports\JaCoCoXmlDataBinding.pas',
+  JaCoCoCoverageReport in 'reports\JaCoCoCoverageReport.pas';
 
 var
   // Delphi 7 leaks interfaces from here :-(

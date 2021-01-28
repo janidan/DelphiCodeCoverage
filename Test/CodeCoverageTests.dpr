@@ -65,7 +65,9 @@ uses
   EmmaDataOutputTests in 'EmmaDataOutputTests.pas',
   MockCommandLineProvider in 'MockCommandLineProvider.pas',
   StrUtilsD9Tests in 'StrUtilsD9Tests.pas',
-  ClassInfoUnitTest in 'ClassInfoUnitTest.pas';
+  ClassInfoUnitTest in 'ClassInfoUnitTest.pas',
+  JaCoCoCoverageReport in '..\Source\reports\JaCoCoCoverageReport.pas',
+  JaCoCoXmlDataBinding in '..\Source\reports\JaCoCoXmlDataBinding.pas';
 
 {$R *.RES}
 

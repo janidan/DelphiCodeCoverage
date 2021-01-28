@@ -141,6 +141,8 @@
         <DCCReference Include="MockCommandLineProvider.pas"/>
         <DCCReference Include="StrUtilsD9Tests.pas"/>
         <DCCReference Include="ClassInfoUnitTest.pas"/>
+        <DCCReference Include="..\Source\reports\JaCoCoCoverageReport.pas"/>
+        <DCCReference Include="..\Source\reports\JaCoCoXmlDataBinding.pas"/>
         <BuildConfiguration Include="Debug">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

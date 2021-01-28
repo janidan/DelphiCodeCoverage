@@ -110,7 +110,7 @@ begin
 
   VerboseOutput('Output dir: ' + FCoverageConfiguration.OutputDir);
 
-  OutputFileName := PathAppend(FCoverageConfiguration.OutputDir, 'CodeCoverage_summary.html');
+  OutputFileName := PathAppend(FCoverageConfiguration.OutputDir, 'index.html');
   OutputFile := TStreamWriter.Create(OutputFileName, False, TEncoding.UTF8);
   try
     AddPreAmble(OutputFile);

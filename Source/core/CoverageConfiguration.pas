@@ -41,6 +41,7 @@ type
     FStripFileExtension: Boolean;
     FEmmaOutput: Boolean;
     FEmmaOutput21: Boolean;
+    FJaCoCoOutput: Boolean;
     FSeparateMeta: Boolean;
     FXmlOutput: Boolean;
     FXmlLines: Boolean;
@@ -114,6 +115,7 @@ type
     function IsComplete(var AReason: string): Boolean;
     function EmmaOutput: Boolean;
     function EmmaOutput21: Boolean;
+    function JaCoCoOutput: Boolean;
     function SeparateMeta: Boolean;
     function XmlOutput: Boolean;
     function XmlLines: Boolean;
@@ -193,6 +195,7 @@ begin
   FSourcePathLst := TStringList.Create;
   FEmmaOutput := False;
   FEmmaOutput21 := False;
+  FJaCoCoOutput := False;
   FSeparateMeta := False;
   FHtmlOutput := False;
   FXmlOutput := False;
@@ -386,6 +389,11 @@ begin
   end;
 end;
 
+function TCoverageConfiguration.JaCoCoOutput: Boolean;
+begin
+  Result := FJaCoCoOutput;
+end;
+
 procedure TCoverageConfiguration.ParseBooleanSwitches;
   function CleanSwitch(const Switch: string): string;
   begin
@@ -401,6 +409,7 @@ procedure TCoverageConfiguration.ParseBooleanSwitches;
 begin
   FEmmaOutput := IsSet(I_CoverageConfiguration.cPARAMETER_EMMA_OUTPUT);
   FEmmaOutput21 := IsSet(I_CoverageConfiguration.cPARAMETER_EMMA21_OUTPUT);
+  FJaCoCoOutput := IsSet(I_CoverageConfiguration.cPARAMETER_JACOCO_OUTPUT);
   FSeparateMeta := IsSet(I_CoverageConfiguration.cPARAMETER_EMMA_SEPARATE_META);
   FXmlOutput := IsSet(I_CoverageConfiguration.cPARAMETER_XML_OUTPUT);
   FXmlLines := IsSet(I_CoverageConfiguration.cPARAMETER_XML_LINES);
@@ -630,6 +639,7 @@ begin
   or (SwitchItem = I_CoverageConfiguration.cPARAMETER_XML_OUTPUT)
   or (SwitchItem = I_CoverageConfiguration.cPARAMETER_XML_LINES)
   or (SwitchItem = I_CoverageConfiguration.cPARAMETER_HTML_OUTPUT)
+  or (SwitchItem = I_CoverageConfiguration.cPARAMETER_JACOCO_OUTPUT)
   or (SwitchItem = I_CoverageConfiguration.cPARAMETER_VERBOSE)
   or (SwitchItem = I_CoverageConfiguration.cPARAMETER_TESTEXE_EXIT_CODE) then
   begin

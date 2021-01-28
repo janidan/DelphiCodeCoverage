@@ -118,6 +118,7 @@ uses
   I_DebugThread,
   I_Report,
   EmmaCoverageFileUnit,
+  JaCoCoCoverageReport,
   DebugModule,
   JclPEImage,
   JclFileUtils,
@@ -151,7 +152,7 @@ begin
   FCoverageConfiguration := TCoverageConfiguration.Create(TCommandLineProvider.Create);
   G_CoverageConfiguration := FCoverageConfiguration;
 
-  FLogManager := TLogManager.Create;
+  FLogManager := G_LogManager;
   FModuleList := TModuleList.Create;
 end;
 
@@ -241,7 +242,9 @@ begin
   ConsoleOutput(I_CoverageConfiguration.cPARAMETER_XML_OUTPUT +
       '                -- Output xml report as CodeCoverage_Summary.xml in the output directory');
   ConsoleOutput(I_CoverageConfiguration.cPARAMETER_HTML_OUTPUT +
-      '               -- Output html report as CodeCoverage_Summary.html in the output directory');
+      '               -- Output html report as index.html in the output directory');
+  ConsoleOutput(I_CoverageConfiguration.cPARAMETER_JACOCO_OUTPUT +
+      '               -- Output jacoco xml report as CodeCoverage_JaCoCo.xml in the output directory');
   ConsoleOutput(I_CoverageConfiguration.cPARAMETER_MODULE_NAMESPACE +
       ' name dll [dll2]   -- Create a separate namespace with the given name for the listed dll:s.');
   ConsoleOutput(I_CoverageConfiguration.cPARAMETER_UNIT_NAMESPACE +
@@ -331,6 +334,12 @@ begin
   if (FCoverageConfiguration.EmmaOutput) or (FCoverageConfiguration.EmmaOutput21) then
   begin
     CoverageReport := TEmmaCoverageFile.Create(FCoverageConfiguration);
+    CoverageReport.Generate(Result, FModuleList,FLogManager);
+  end;
+
+  if (FCoverageConfiguration.JaCoCoOutput) then
+  begin
+    CoverageReport := TJaCoCoCoverageReport.Create(FCoverageConfiguration);
     CoverageReport.Generate(Result, FModuleList,FLogManager);
   end;
 end;
