@@ -6,8 +6,7 @@ build/*.*
 CodeCoverage/CodeCoverage.drc
 *.drc
 *.identcache
-build/*/*.*
-build/*/*/*.*
+build/**/*.*
 dunit.ini
 
 *.res
